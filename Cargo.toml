@@ -1,8 +1,9 @@
 [package]
 name = "graphity"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Petr Horacek <p.horacek94@gmail.com>"]
 edition = "2018"
 categories = ["no-std"]
-
-[dependencies]
+license = "GPL-3.0-or-later"
+description = "#![no_std] implementation of graph data type."
+repository = "https://github.com/zlosynth/graphity"
