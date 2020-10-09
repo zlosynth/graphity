@@ -1,3 +1,6 @@
 #![no_std]
 
-mod graph;
+#[macro_use]
+extern crate alloc;
+
+pub mod graph;
