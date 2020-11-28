@@ -1,3 +1,3 @@
-# graphity
+# Graphity
 
-Naive graph implementation with `#![no_std]`.
+Graph iterators.
