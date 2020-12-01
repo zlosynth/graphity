@@ -9,3 +9,6 @@ description = "Graph iterators."
 repository = "https://github.com/zlosynth/graphity"
 documentation = "https://docs.rs/graphity"
 readme = "README.md"
+
+[dev-dependencies]
+graphity = { path = "." }
