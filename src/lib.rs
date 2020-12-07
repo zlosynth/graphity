@@ -34,9 +34,7 @@ pub trait Node<T: Default> {
     fn write(&mut self, _consumer: Self::Consumer, _input: T) {}
 }
 
-// TODO: Find a better name, Node handle?
-// TODO: Implement this trait for reference only?
-pub trait Node2<T: Default> {
+pub trait NodeWrapper<T: Default> {
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
 
@@ -72,7 +70,7 @@ pub trait NodeIndex {
 
 pub trait Graph {
     type NodeIndex: NodeIndex;
-    type Node: Node2<i32>;
+    type Node: NodeWrapper<i32>;
     type ProducerIndex;
     type ConsumerIndex;
 
@@ -147,7 +145,7 @@ impl From<$x> for RegisteredNode {
 }
 )*
 
-impl graphity::Node2<i32> for RegisteredNode {
+impl graphity::NodeWrapper<i32> for RegisteredNode {
     type Consumer = RegisteredConsumer;
     type Producer = RegisteredProducer;
 
@@ -312,12 +310,12 @@ impl graphity::Graph for $y {
     }
 
     fn tick(&mut self) {
-        self.nodes.iter_mut().for_each(|(_, n)| <RegisteredNode as graphity::Node2<i32>>::tick(n));
+        self.nodes.iter_mut().for_each(|(_, n)| <RegisteredNode as graphity::NodeWrapper<i32>>::tick(n));
         for edge in self.edges.iter() {
             let source = self.nodes.get(&(edge.0).node_index).unwrap();
-            let output = <RegisteredNode as graphity::Node2<i32>>::read(source, (edge.0).producer);
+            let output = <RegisteredNode as graphity::NodeWrapper<i32>>::read(source, (edge.0).producer);
             let destination = self.nodes.get_mut(&(edge.1).node_index).unwrap();
-            <RegisteredNode as graphity::Node2<i32>>::write(destination, (edge.1).consumer, output);
+            <RegisteredNode as graphity::NodeWrapper<i32>>::write(destination, (edge.1).consumer, output);
         }
     }
 }
