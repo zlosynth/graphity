@@ -165,6 +165,7 @@ impl graphity::NodeWrapper<$payload> for RegisteredNode {
         $(
             Self::$node(n) => match producer {
                 Self::Producer::$node(p) => <$node as graphity::Node<$payload>>::read(n, p),
+                #[allow(unreachable_patterns)]
                 _ => panic!("Node does not provide given producer"),
             },
         )*
@@ -180,6 +181,7 @@ impl graphity::NodeWrapper<$payload> for RegisteredNode {
         $(
             Self::$node(n) => match consumer {
                 Self::Consumer::$node(c) => <$node as graphity::Node<$payload>>::write(n, c, input),
+                #[allow(unreachable_patterns)]
                 _ => panic!("Node does not provide given consumer"),
             },
         )*
@@ -235,6 +237,7 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
                     node_index: *self,
                     producer
                 },
+                #[allow(unreachable_patterns)]
                 _ => panic!("Node does not provide given producer"),
             },
             )*
@@ -253,6 +256,7 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
                     node_index: *self,
                     consumer
                 },
+                #[allow(unreachable_patterns)]
                 _ => panic!("Node does not provide given consumer"),
             },
             )*
