@@ -3,7 +3,6 @@
 // TODO: Show how to implement node containing its own graph and nodes
 // TODO: Add prefix with __ generated stuff once it is tested (I want to hear from linter)
 // TODO: Define trait for consumer and producer (Copy+Hash) and introduce a macro for it
-// TODO: Make the carried type configurable
 // TODO: With this, we can get too much delay caused by long chains and async for asymetric side chains.
 //       Maybe we can later improve the graph.tick so it travels through the graph, recursively getting
 //       data for every block before ticking.
@@ -68,9 +67,9 @@ pub trait NodeIndex {
         C: Into<Self::Consumer>;
 }
 
-pub trait Graph {
+pub trait Graph<T: Default> {
     type NodeIndex: NodeIndex;
-    type Node: NodeWrapper<i32>;
+    type Node: NodeWrapper<T>;
     type ProducerIndex;
     type ConsumerIndex;
 
@@ -90,7 +89,7 @@ pub trait Graph {
 
 #[macro_export]
 macro_rules! graphity {
-    ( $y:ident; $( $x:ident ),* ) => {
+    ( $graph:ident <$payload:ty>; $( $node:ident ),* ) => {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct GeneratedNodeIndex{
@@ -117,13 +116,13 @@ impl graphity::ConsumerIndex for GeneratedConsumerIndex {}
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum RegisteredNodeClass {
 $(
-    $x,
+    $node,
 )*
 }
 
 pub enum RegisteredNode {
 $(
-    $x($x),
+    $node($node),
 )*
 }
 
@@ -131,56 +130,56 @@ impl RegisteredNode {
     fn class(&self) -> RegisteredNodeClass {
         match self {
         $(
-            RegisteredNode::$x(_) => RegisteredNodeClass::$x,
+            RegisteredNode::$node(_) => RegisteredNodeClass::$node,
         )*
         }
     }
 }
 
 $(
-impl From<$x> for RegisteredNode {
-    fn from(source: $x) -> Self {
-        Self::$x(source)
+impl From<$node> for RegisteredNode {
+    fn from(source: $node) -> Self {
+        Self::$node(source)
     }
 }
 )*
 
-impl graphity::NodeWrapper<i32> for RegisteredNode {
+impl graphity::NodeWrapper<$payload> for RegisteredNode {
     type Consumer = RegisteredConsumer;
     type Producer = RegisteredProducer;
 
     fn tick(&mut self) {
         match self {
         $(
-            Self::$x(n) => <$x as graphity::Node<i32>>::tick(n),
+            Self::$node(n) => <$node as graphity::Node<$payload>>::tick(n),
         )*
         }
     }
 
-    fn read<P>(&self, producer: P) -> i32
+    fn read<P>(&self, producer: P) -> $payload
     where
         P: Into<Self::Producer>,
     {
         let producer = producer.into();
         match self {
         $(
-            Self::$x(n) => match producer {
-                Self::Producer::$x(p) => <$x as graphity::Node<i32>>::read(n, p),
+            Self::$node(n) => match producer {
+                Self::Producer::$node(p) => <$node as graphity::Node<$payload>>::read(n, p),
                 _ => panic!("Node does not provide given producer"),
             },
         )*
         }
     }
 
-    fn write<C>(&mut self, consumer: C, input: i32)
+    fn write<C>(&mut self, consumer: C, input: $payload)
     where
         C: Into<Self::Consumer>,
     {
         let consumer = consumer.into();
         match self {
         $(
-            Self::$x(n) => match consumer {
-                Self::Consumer::$x(c) => <$x as graphity::Node<i32>>::write(n, c, input),
+            Self::$node(n) => match consumer {
+                Self::Consumer::$node(c) => <$node as graphity::Node<$payload>>::write(n, c, input),
                 _ => panic!("Node does not provide given consumer"),
             },
         )*
@@ -191,14 +190,14 @@ impl graphity::NodeWrapper<i32> for RegisteredNode {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum RegisteredProducer {
 $(
-    $x(<$x as graphity::Node<i32>>::Producer),
+    $node(<$node as graphity::Node<$payload>>::Producer),
 )*
 }
 
 $(
-impl From<<$x as graphity::Node<i32>>::Producer> for RegisteredProducer {
-    fn from(producer: <$x as graphity::Node<i32>>::Producer) -> Self {
-        Self::$x(producer)
+impl From<<$node as graphity::Node<$payload>>::Producer> for RegisteredProducer {
+    fn from(producer: <$node as graphity::Node<$payload>>::Producer) -> Self {
+        Self::$node(producer)
     }
 }
 )*
@@ -206,14 +205,14 @@ impl From<<$x as graphity::Node<i32>>::Producer> for RegisteredProducer {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum RegisteredConsumer {
 $(
-    $x(<$x as graphity::Node<i32>>::Consumer),
+    $node(<$node as graphity::Node<$payload>>::Consumer),
 )*
 }
 
 $(
-impl From<<$x as graphity::Node<i32>>::Consumer> for RegisteredConsumer {
-    fn from(producer: <$x as graphity::Node<i32>>::Consumer) -> Self {
-        Self::$x(producer)
+impl From<<$node as graphity::Node<$payload>>::Consumer> for RegisteredConsumer {
+    fn from(producer: <$node as graphity::Node<$payload>>::Consumer) -> Self {
+        Self::$node(producer)
     }
 }
 )*
@@ -231,8 +230,8 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
         let producer = producer.into();
         match self.node_class {
             $(
-            RegisteredNodeClass::$x => match producer {
-                Self::Producer::$x(_) => GeneratedProducerIndex{
+            RegisteredNodeClass::$node => match producer {
+                Self::Producer::$node(_) => GeneratedProducerIndex{
                     node_index: *self,
                     producer
                 },
@@ -249,8 +248,8 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
         let consumer = consumer.into();
         match self.node_class {
             $(
-            RegisteredNodeClass::$x => match consumer {
-                Self::Consumer::$x(_) => GeneratedConsumerIndex{
+            RegisteredNodeClass::$node => match consumer {
+                Self::Consumer::$node(_) => GeneratedConsumerIndex{
                     node_index: *self,
                     consumer
                 },
@@ -261,13 +260,13 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
     }
 }
 
-pub struct $y {
+pub struct $graph {
     index_counter: usize,
     nodes: std::collections::HashMap<GeneratedNodeIndex, RegisteredNode>,
     edges: std::collections::HashSet<(GeneratedProducerIndex, GeneratedConsumerIndex)>,
 }
 
-impl $y {
+impl $graph {
     pub fn new() -> Self {
         Self {
             index_counter: 0,
@@ -277,7 +276,7 @@ impl $y {
     }
 }
 
-impl graphity::Graph for $y {
+impl graphity::Graph<$payload> for $graph {
     type NodeIndex = GeneratedNodeIndex;
     type Node = RegisteredNode;
     type ProducerIndex = GeneratedProducerIndex;
@@ -310,12 +309,12 @@ impl graphity::Graph for $y {
     }
 
     fn tick(&mut self) {
-        self.nodes.iter_mut().for_each(|(_, n)| <RegisteredNode as graphity::NodeWrapper<i32>>::tick(n));
+        self.nodes.iter_mut().for_each(|(_, n)| <RegisteredNode as graphity::NodeWrapper<$payload>>::tick(n));
         for edge in self.edges.iter() {
             let source = self.nodes.get(&(edge.0).node_index).unwrap();
-            let output = <RegisteredNode as graphity::NodeWrapper<i32>>::read(source, (edge.0).producer);
+            let output = <RegisteredNode as graphity::NodeWrapper<$payload>>::read(source, (edge.0).producer);
             let destination = self.nodes.get_mut(&(edge.1).node_index).unwrap();
-            <RegisteredNode as graphity::NodeWrapper<i32>>::write(destination, (edge.1).consumer, output);
+            <RegisteredNode as graphity::NodeWrapper<$payload>>::write(destination, (edge.1).consumer, output);
         }
     }
 }
@@ -431,7 +430,7 @@ mod tests {
         fn simple_tree() {
             mod g {
                 use super::{Number, Plus, Recorder};
-                graphity!(Graph; Number, Plus, Recorder);
+                graphity!(Graph<i32>; Number, Plus, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -463,7 +462,7 @@ mod tests {
         fn multiple_consumers() {
             mod g {
                 use super::{Number, Plus, Recorder};
-                graphity!(Graph; Number, Plus, Recorder);
+                graphity!(Graph<i32>; Number, Plus, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -499,7 +498,7 @@ mod tests {
         fn internal_cycle() {
             mod g {
                 use super::{Number, Plus, Recorder};
-                graphity!(Graph; Number, Plus, Recorder);
+                graphity!(Graph<i32>; Number, Plus, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -524,7 +523,7 @@ mod tests {
         fn add_and_get_node() {
             mod g {
                 use super::Number;
-                graphity!(Graph; Number);
+                graphity!(Graph<i32>; Number);
             }
 
             let mut graph = g::Graph::new();
@@ -537,7 +536,7 @@ mod tests {
         fn get_nonexistent_node() {
             mod g {
                 use super::Number;
-                graphity!(Graph; Number);
+                graphity!(Graph<i32>; Number);
             }
 
             let one = {
@@ -553,7 +552,7 @@ mod tests {
         fn read_node() {
             mod g {
                 use super::Number;
-                graphity!(Graph; Number);
+                graphity!(Graph<i32>; Number);
             }
 
             let mut graph = g::Graph::new();
@@ -567,7 +566,7 @@ mod tests {
         fn panic_on_read_nonexistent_producer() {
             mod g {
                 use super::{Number, Recorder};
-                graphity!(Graph; Number, Recorder);
+                graphity!(Graph<i32>; Number, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -580,7 +579,7 @@ mod tests {
         fn get_consumer_index() {
             mod g {
                 use super::Plus;
-                graphity!(Graph; Plus);
+                graphity!(Graph<i32>; Plus);
             }
 
             let mut graph = g::Graph::new();
@@ -594,7 +593,7 @@ mod tests {
         fn panic_on_get_invalid_consumer_index() {
             mod g {
                 use super::{Plus, Recorder};
-                graphity!(Graph; Plus, Recorder);
+                graphity!(Graph<i32>; Plus, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -607,7 +606,7 @@ mod tests {
         fn get_producer_index() {
             mod g {
                 use super::Plus;
-                graphity!(Graph; Plus);
+                graphity!(Graph<i32>; Plus);
             }
 
             let mut graph = g::Graph::new();
@@ -621,7 +620,7 @@ mod tests {
         fn panic_on_get_invalid_producer_index() {
             mod g {
                 use super::{Plus, Recorder};
-                graphity!(Graph; Plus, Recorder);
+                graphity!(Graph<i32>; Plus, Recorder);
             }
 
             let mut graph = g::Graph::new();
@@ -634,7 +633,7 @@ mod tests {
         fn add_edge() {
             mod g {
                 use super::{Number, Recorder};
-                graphity!(Graph; Number, Recorder);
+                graphity!(Graph<i32>; Number, Recorder);
             }
 
             let mut graph = g::Graph::new();

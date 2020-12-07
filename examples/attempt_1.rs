@@ -7,7 +7,7 @@ use graphity::{Graph, NoConsumer, NoProducer, Node, NodeIndex};
 
 mod g {
     use super::{Number, Printer};
-    graphity!(ExampleGraph; Printer, Number);
+    graphity!(ExampleGraph<i32>; Printer, Number);
 }
 
 #[derive(Default)]
