@@ -1,6 +1,5 @@
 //#![no_std]
 // TODO: no std
-// TODO: Unify panic messages
 // TODO: Show how to implement node containing its own graph and nodes
 // TODO: Add prefix with __ generated stuff once it is tested (I want to hear from linter)
 // TODO: Define trait for consumer and producer (Copy+Hash) and introduce a macro for it
@@ -14,7 +13,7 @@
 // On each change of the graph we will calculate the order in which edges should be addressed -
 // keep them as a queue
 
-use std::hash::Hash;
+use core::hash::Hash;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum NoConsumer {}
@@ -239,7 +238,7 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
                     node_index: *self,
                     producer
                 },
-                _ => panic!("Node does not provide such producer"),
+                _ => panic!("Node does not provide given producer"),
             },
             )*
         }
@@ -257,7 +256,7 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
                     node_index: *self,
                     consumer
                 },
-                _ => panic!("Node does not provide such consumer"),
+                _ => panic!("Node does not provide given consumer"),
             },
             )*
         }
@@ -593,7 +592,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic(expected = "Node does not provide such consumer")]
+        #[should_panic(expected = "Node does not provide given consumer")]
         fn panic_on_get_invalid_consumer_index() {
             mod g {
                 use super::{Plus, Recorder};
@@ -620,7 +619,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic(expected = "Node does not provide such producer")]
+        #[should_panic(expected = "Node does not provide given producer")]
         fn panic_on_get_invalid_producer_index() {
             mod g {
                 use super::{Plus, Recorder};
@@ -643,6 +642,7 @@ mod tests {
             let mut graph = g::Graph::new();
             let one = graph.add_node(Number(1));
             let recorder = graph.add_node(Recorder::default());
+
             graph.add_edge(one.producer(NumberOutput), recorder.consumer(RecorderInput));
         }
     }
