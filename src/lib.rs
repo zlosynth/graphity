@@ -5,6 +5,8 @@
 // TODO: Make reverting of feedbacks more effective by finding all the loops at once
 // TODO: Remove shipped NoProducer and NoConsumer, they are getting duplicated trait implementations
 
+pub mod topological_sort;
+
 use core::hash::Hash;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -258,6 +260,7 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
     }
 }
 
+// TODO: Keep edges indexed by the destination
 pub struct $graph {
     index_counter: usize,
 
@@ -281,6 +284,7 @@ pub struct $graph {
     // topo sorting, then tick the bottom most and feel all outgoing edges, continue to the next in queue
     // TODO: Keep topological sort of nodes
 }
+
 impl $graph {
     pub fn new() -> Self {
         Self {
@@ -326,17 +330,19 @@ impl graphity::Graph<$payload> for $graph {
 
         self.edges.insert(edge.clone());
 
-        match topological_sort(&self.nodes, &self.edges) {
-            Err(Cycle) => {
-                println!("Cycle error!");
-                self.edges.remove(&edge);
-                let (feedback_source, feedback_destination) = new_feedback_pair();
-                let feedback_source = self.add_node(feedback_source);
-                let feedback_destination = self.add_node(feedback_destination);
-                self.edges.insert((edge.0, <GeneratedNodeIndex as graphity::NodeIndex>::consumer(&feedback_source, FeedbackSourceInput)));
-                self.edges.insert((<GeneratedNodeIndex as graphity::NodeIndex>::producer(&feedback_destination, FeedbackDestinationOutput), edge.1));
-            },
-            Ok(n) => println!("No cycle error {:?}", n),
+        let edges = self.edges
+            .iter()
+            .map(|(source, destination)| (&source.node_index, &destination.node_index));
+
+        if let Err(graphity::topological_sort::Cycle) =
+            graphity::topological_sort::topological_sort(self.nodes.keys(), edges)
+        {
+            self.edges.remove(&edge);
+            let (feedback_source, feedback_destination) = new_feedback_pair();
+            let feedback_source = self.add_node(feedback_source);
+            let feedback_destination = self.add_node(feedback_destination);
+            self.edges.insert((edge.0, <GeneratedNodeIndex as graphity::NodeIndex>::consumer(&feedback_source, FeedbackSourceInput)));
+            self.edges.insert((<GeneratedNodeIndex as graphity::NodeIndex>::producer(&feedback_destination, FeedbackDestinationOutput), edge.1));
         }
     }
 
@@ -351,66 +357,6 @@ impl graphity::Graph<$payload> for $graph {
             let destination = self.nodes.get_mut(&(edge.1).node_index).unwrap();
             <RegisteredNode as graphity::NodeWrapper<$payload>>::write(destination, (edge.1).consumer, output);
         }
-    }
-}
-
-struct Cycle;
-
-// TODO: Move it outside, use traits
-// pass edges transformed to node_indexes only
-fn topological_sort(
-    nodes: &std::collections::HashMap<GeneratedNodeIndex, RegisteredNode>,
-    edges: &std::collections::HashSet<(GeneratedProducerIndex, GeneratedConsumerIndex)>
-) -> Result<Vec<GeneratedNodeIndex>, Cycle>
-{
-    let mut sorted_nodes: Vec<GeneratedNodeIndex> = Vec::new();
-
-    let mut edges: std::collections::HashSet<(GeneratedNodeIndex, GeneratedNodeIndex)> = edges
-        .iter()
-        .map(|(source, destination)| (source.node_index, destination.node_index))
-        .collect();
-
-    let mut nodes_queue: std::collections::VecDeque<GeneratedNodeIndex> = {
-        let nodes: std::collections::HashSet<_> = nodes
-            .keys()
-            .map(|key| *key)
-            .collect();
-        let consumers: std::collections::HashSet<_> = edges
-            .iter()
-            .map(|(_, consumer)| *consumer)
-            .collect();
-        let pure_producers = nodes.difference(&consumers);
-        pure_producers.map(|node| *node).collect()
-    };
-
-    while let Some(source_node) = nodes_queue.pop_front() {
-        sorted_nodes.push(source_node);
-
-        let outcoming_edges: std::collections::HashSet<_> = edges
-            .iter()
-            .filter(|(source, _)| *source == source_node)
-            .map(|edge| *edge)
-            .collect();
-
-        outcoming_edges.into_iter().for_each(|edge| {
-            let destination_node = edge.1;
-
-            edges.remove(&edge);
-
-            let no_other_incoming_edges = edges
-                .iter()
-                .filter(|(_, destination)| *destination == destination_node)
-                .count() == 0;
-            if no_other_incoming_edges {
-                nodes_queue.push_back(destination_node);
-            }
-        });
-    }
-
-    if edges.is_empty() {
-        Ok(sorted_nodes)
-    } else {
-        Err(Cycle)
     }
 }
 
