@@ -31,6 +31,9 @@ pub trait Node<T: Default> {
 pub trait NodeWrapper<T: Default> {
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
+    type Class;
+
+    fn class(&self) -> Self::Class;
 
     fn tick(&mut self);
 
@@ -43,15 +46,32 @@ pub trait NodeWrapper<T: Default> {
         C: Into<Self::Consumer>;
 }
 
-pub trait ProducerIndex: Copy + Hash {}
+// TODO: Use associated types instead?
+// TODO: Return pointer to the node_index
+pub trait ProducerIndex<NI, P>: Copy + Hash + Eq
+where
+    NI: NodeIndex,
+    P: Copy + Hash,
+{
+    fn node_index(&self) -> &NI;
+    fn producer(&self) -> P;
+}
 
-pub trait ConsumerIndex: Copy + Hash {}
+// TODO: Use associated types instead?
+pub trait ConsumerIndex<NI, C>: Copy + Hash + Eq
+where
+    NI: NodeIndex,
+    C: Copy + Hash,
+{
+    fn node_index(&self) -> &NI;
+    fn consumer(&self) -> C;
+}
 
-pub trait NodeIndex {
-    type Producer;
-    type Consumer;
-    type ProducerIndex: ProducerIndex;
-    type ConsumerIndex: ConsumerIndex;
+pub trait NodeIndex: Copy + Hash + Eq {
+    type Producer: Copy + Hash;
+    type Consumer: Copy + Hash;
+    type ProducerIndex: ProducerIndex<Self, Self::Producer>;
+    type ConsumerIndex: ConsumerIndex<Self, Self::Consumer>;
 
     fn producer<P>(&self, producer: P) -> Self::ProducerIndex
     where
@@ -82,7 +102,6 @@ pub trait Graph<T: Default> {
     fn tick(&mut self);
 }
 
-// TODO: Have a wrapper around this adding the feedback node
 #[macro_export]
 macro_rules! graphity_inner {
     ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
@@ -99,7 +118,15 @@ pub struct GeneratedProducerIndex{
     producer: RegisteredProducer,
 }
 
-impl graphity::ProducerIndex for GeneratedProducerIndex {}
+impl graphity::ProducerIndex<GeneratedNodeIndex, RegisteredProducer> for GeneratedProducerIndex {
+    fn node_index(&self) -> &GeneratedNodeIndex {
+        &self.node_index
+    }
+
+    fn producer(&self) -> RegisteredProducer {
+        self.producer
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct GeneratedConsumerIndex{
@@ -107,7 +134,16 @@ pub struct GeneratedConsumerIndex{
     consumer: RegisteredConsumer,
 }
 
-impl graphity::ConsumerIndex for GeneratedConsumerIndex {}
+impl graphity::ConsumerIndex<GeneratedNodeIndex, RegisteredConsumer> for GeneratedConsumerIndex {
+    fn node_index(&self) -> &GeneratedNodeIndex {
+        &self.node_index
+    }
+
+    fn consumer(&self) -> RegisteredConsumer {
+        self.consumer
+    }
+}
+
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum RegisteredNodeClass {
@@ -122,16 +158,6 @@ $(
 )*
 }
 
-impl RegisteredNode {
-    fn class(&self) -> RegisteredNodeClass {
-        match self {
-        $(
-            RegisteredNode::$node(_) => RegisteredNodeClass::$node,
-        )*
-        }
-    }
-}
-
 $(
 impl From<$node> for RegisteredNode {
     fn from(source: $node) -> Self {
@@ -143,6 +169,15 @@ impl From<$node> for RegisteredNode {
 impl graphity::NodeWrapper<$payload> for RegisteredNode {
     type Consumer = RegisteredConsumer;
     type Producer = RegisteredProducer;
+    type Class = RegisteredNodeClass;
+
+    fn class(&self) -> RegisteredNodeClass {
+        match self {
+        $(
+            RegisteredNode::$node(_) => RegisteredNodeClass::$node,
+        )*
+        }
+    }
 
     fn tick(&mut self) {
         match self {
@@ -261,11 +296,11 @@ impl graphity::NodeIndex for GeneratedNodeIndex {
 }
 
 // TODO: Keep edges indexed by the destination
-pub struct $graph {
+pub struct __Graph<N, NI, CI, PI> {
     index_counter: usize,
 
-    nodes: std::collections::HashMap<GeneratedNodeIndex, RegisteredNode>,
-    edges: std::collections::HashSet<(GeneratedProducerIndex, GeneratedConsumerIndex)>,
+    nodes: std::collections::HashMap<NI, N>,
+    edges: std::collections::HashSet<(PI, CI)>,
 
     // XXX:
     // dynamically add/remove the feedback node, have to keep feedback nodes to maintain previous state
@@ -285,7 +320,7 @@ pub struct $graph {
     // TODO: Keep topological sort of nodes
 }
 
-impl $graph {
+impl<N, NI, CI, PI> __Graph<N, NI, CI, PI> {
     pub fn new() -> Self {
         Self {
             index_counter: 0,
@@ -295,21 +330,22 @@ impl $graph {
     }
 }
 
-impl graphity::Graph<$payload> for $graph {
+impl graphity::Graph<$payload> for __Graph<RegisteredNode, GeneratedNodeIndex, GeneratedConsumerIndex, GeneratedProducerIndex>
+        {
     type NodeIndex = GeneratedNodeIndex;
     type Node = RegisteredNode;
     type ProducerIndex = GeneratedProducerIndex;
     type ConsumerIndex = GeneratedConsumerIndex;
 
     // TODO: Recalculate the graph path strategy
-    fn add_node<N>(&mut self, node: N) -> Self::NodeIndex
+    fn add_node<IntoN>(&mut self, node: IntoN) -> Self::NodeIndex
     where
-        N: Into<Self::Node>,
+        IntoN: Into<Self::Node>,
     {
         let node = node.into();
         let index = GeneratedNodeIndex{
             id: self.index_counter,
-            node_class: node.class()
+            node_class: <RegisteredNode as graphity::NodeWrapper<$payload>>::class(&node),
         };
         self.nodes.insert(index, node);
         self.index_counter += 1;
@@ -332,7 +368,10 @@ impl graphity::Graph<$payload> for $graph {
 
         let edges = self.edges
             .iter()
-            .map(|(source, destination)| (&source.node_index, &destination.node_index));
+            .map(|(source, destination)| (
+                <GeneratedProducerIndex as graphity::ProducerIndex<GeneratedNodeIndex, RegisteredProducer>>::node_index(source),
+                <GeneratedConsumerIndex as graphity::ConsumerIndex<GeneratedNodeIndex, RegisteredConsumer>>::node_index(destination),
+            ));
 
         if let Err(graphity::topological_sort::Cycle) =
             graphity::topological_sort::topological_sort(self.nodes.keys(), edges)
@@ -352,20 +391,27 @@ impl graphity::Graph<$payload> for $graph {
 
         self.nodes.iter_mut().for_each(|(_, n)| <RegisteredNode as graphity::NodeWrapper<$payload>>::tick(n));
         for edge in self.edges.iter() {
-            let source = self.nodes.get(&(edge.0).node_index).unwrap();
-            let output = <RegisteredNode as graphity::NodeWrapper<$payload>>::read(source, (edge.0).producer);
-            let destination = self.nodes.get_mut(&(edge.1).node_index).unwrap();
-            <RegisteredNode as graphity::NodeWrapper<$payload>>::write(destination, (edge.1).consumer, output);
+            let source = self.nodes.get(&<GeneratedProducerIndex as graphity::ProducerIndex<GeneratedNodeIndex, RegisteredProducer>>::node_index(&edge.0)).unwrap();
+            let output = <RegisteredNode as graphity::NodeWrapper<$payload>>::read(source, <GeneratedProducerIndex as graphity::ProducerIndex<GeneratedNodeIndex, RegisteredProducer>>::producer(&edge.0));
+            let destination = self.nodes.get_mut(&<GeneratedConsumerIndex as graphity::ConsumerIndex<GeneratedNodeIndex, RegisteredConsumer>>::node_index(&edge.1)).unwrap();
+            <RegisteredNode as graphity::NodeWrapper<$payload>>::write(destination, <GeneratedConsumerIndex as graphity::ConsumerIndex<GeneratedNodeIndex, RegisteredConsumer>>::consumer(&edge.1), output);
         }
     }
 }
+
+pub type $graph = __Graph<
+    RegisteredNode,
+    GeneratedNodeIndex,
+    GeneratedConsumerIndex,
+    GeneratedProducerIndex
+>;
 
     };
 }
 
 // TODO: Make it only inner, not documented
 // TODO: Try having this as a basic type, no macro needed
-// TODO: Move to a separate module
+
 #[macro_export]
 macro_rules! graphity_feedback {
     ( $payload:ty ) => {
