@@ -5,6 +5,7 @@
 // TODO: Make reverting of feedbacks more effective by finding all the loops at once
 // TODO: Remove shipped NoProducer and NoConsumer, they are getting duplicated trait implementations
 
+mod graph;
 pub mod topological_sort;
 
 use core::hash::Hash;
