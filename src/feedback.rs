@@ -1,9 +1,7 @@
-// TODO: Add tests
-// TODO: Make the type configurable
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::node::*;
+use crate::node::Node;
 
 pub fn new_feedback_pair<T>() -> (FeedbackSource<T>, FeedbackSink<T>)
 where
