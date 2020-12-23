@@ -10,6 +10,7 @@
 // TODO: Make reverting of feedbacks more effective by finding all the loops at once
 // TODO: Remove shipped NoProducer and NoConsumer, they are getting duplicated trait implementations
 
+mod feedback;
 mod graph;
 mod node;
 mod signal;
