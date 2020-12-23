@@ -1,3 +1,8 @@
+// TODO: This will contrain only documentation and reexports
+// TODO: Leave graph as is
+// TODO: Add module for node wrapper
+// TODO: Add module that would use graph with nodes, passing the information, avoiding loops
+
 // TODO: Implement removal of node and of edge
 // when removed, try removing all feedback nodes to see if one of them becomes redundant
 // TODO: Document that this models signal flow, allows for feedback loops,
@@ -6,7 +11,9 @@
 // TODO: Remove shipped NoProducer and NoConsumer, they are getting duplicated trait implementations
 
 mod graph;
-pub mod topological_sort;
+mod node;
+mod signal;
+pub mod sort;
 
 use core::hash::Hash;
 
@@ -374,8 +381,8 @@ impl graphity::Graph<$payload> for __Graph<RegisteredNode, GeneratedNodeIndex, G
                 <GeneratedConsumerIndex as graphity::ConsumerIndex<GeneratedNodeIndex, RegisteredConsumer>>::node_index(destination),
             ));
 
-        if let Err(graphity::topological_sort::Cycle) =
-            graphity::topological_sort::topological_sort(self.nodes.keys(), edges)
+        if let Err(graphity::sort::Cycle) =
+            graphity::sort::topological_sort(self.nodes.keys(), edges)
         {
             self.edges.remove(&edge);
             let (feedback_source, feedback_destination) = new_feedback_pair();

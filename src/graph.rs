@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
+// TODO: Implement iterator for nodes and edges once it is clear which are needed
+use std::collections::{hash_map, HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
+// TODO: Keep Node class too, to make sure that the consumer/producer is available in the given node
 pub trait NodeIndex<C, P>: Copy + Hash + Eq {
     fn new(index: usize) -> Self;
     fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<Self, C, P>
@@ -61,12 +63,16 @@ where
 // all consumers of a node are connected to all producers of the node
 pub struct Graph<N, NI, C, P> {
     index_counter: usize,
-    nodes: HashMap<NI, N>,
-    edges: HashMap<ProducerIndex<NI, C, P>, HashSet<ConsumerIndex<NI, C, P>>>,
+    // TODO: Must make this private
+    pub nodes: HashMap<NI, N>,
+    // TODO: Must make this private
+    // TODO: Turn this to a basic hashset until all usecases are identified
+    pub edges: HashMap<ProducerIndex<NI, C, P>, HashSet<ConsumerIndex<NI, C, P>>>,
     _consumer: PhantomData<C>,
     _producer: PhantomData<P>,
 }
 
+// TODO: Make this into a trait, so it can be implemented by the signal graph too
 impl<N, NI, C, P> Graph<N, NI, C, P>
 where
     NI: NodeIndex<C, P>,
@@ -116,6 +122,14 @@ where
             .expect("The node for the given index was not found")
     }
 
+    pub fn nodes(&self) -> hash_map::Values<NI, N> {
+        self.nodes.values()
+    }
+
+    pub fn nodes_mut(&mut self) -> hash_map::ValuesMut<NI, N> {
+        self.nodes.values_mut()
+    }
+
     pub fn add_edge(
         &mut self,
         producer: ProducerIndex<NI, C, P>,
@@ -156,6 +170,13 @@ where
             Some(consumers) => consumers.contains(&consumer),
             None => false,
         }
+    }
+
+    // TODO: Define a proper iterator once it is clear whether one is needed
+    pub fn edges(
+        &self,
+    ) -> hash_map::Iter<ProducerIndex<NI, C, P>, HashSet<ConsumerIndex<NI, C, P>>> {
+        self.edges.iter()
     }
 }
 
