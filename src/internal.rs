@@ -2,8 +2,8 @@ use crate::feedback::*;
 use crate::node::*;
 
 pub enum InternalNode {
-    FeedbackSource(FeedbackSource),
-    FeedbackSink(FeedbackSink),
+    FeedbackSource(FeedbackSource<i32>),
+    FeedbackSink(FeedbackSink<i32>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -18,14 +18,14 @@ pub enum InternalNodeOutput {
     FeedbackSink(FeedbackSinkOutput),
 }
 
-impl From<FeedbackSource> for InternalNode {
-    fn from(feedback_source: FeedbackSource) -> Self {
+impl From<FeedbackSource<i32>> for InternalNode {
+    fn from(feedback_source: FeedbackSource<i32>) -> Self {
         Self::FeedbackSource(feedback_source)
     }
 }
 
-impl From<FeedbackSink> for InternalNode {
-    fn from(feedback_sink: FeedbackSink) -> Self {
+impl From<FeedbackSink<i32>> for InternalNode {
+    fn from(feedback_sink: FeedbackSink<i32>) -> Self {
         Self::FeedbackSink(feedback_sink)
     }
 }
