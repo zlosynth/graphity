@@ -1,17 +1,22 @@
-use crate::node::Node;
+// TODO: Add tests
+// TODO: Make the type configurable
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::node::*;
 
 pub fn new_feedback_pair() -> (FeedbackSource, FeedbackSink) {
-    let value = std::rc::Rc::new(std::cell::RefCell::new(0));
+    let value = Rc::new(RefCell::new(0));
     (
         FeedbackSource {
-            value: std::rc::Rc::clone(&value),
+            value: Rc::clone(&value),
         },
         FeedbackSink { value },
     )
 }
 
 pub struct FeedbackSource {
-    pub value: std::rc::Rc<std::cell::RefCell<i32>>,
+    pub value: Rc<RefCell<i32>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -30,7 +35,7 @@ impl Node<i32> for FeedbackSource {
 }
 
 pub struct FeedbackSink {
-    pub value: std::rc::Rc<std::cell::RefCell<i32>>,
+    pub value: Rc<RefCell<i32>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

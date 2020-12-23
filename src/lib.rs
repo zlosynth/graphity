@@ -12,6 +12,7 @@
 
 mod feedback;
 mod graph;
+mod internal;
 mod node;
 mod signal;
 pub mod sort;
