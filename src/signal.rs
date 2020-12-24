@@ -575,7 +575,38 @@ mod tests {
 
     type TestProducerIndex = ProducerIndex<TestNodeIndex, TestConsumer, TestProducer>;
 
-    type TestSignalGraph = SignalGraph<TestNode, TestNodeIndex, TestConsumer, TestProducer>;
+    // type TestSignalGraph = SignalGraph<TestNode, TestNodeIndex, TestConsumer, TestProducer>;
+    // TODO: Wrap it
+    type TestSignalGraph = SignalGraph<
+        SignalNode<TestNode>,
+        SignalNodeIndex<TestNodeIndex>,
+        SignalNodeInput<TestConsumer>,
+        SignalNodeOutput<TestProducer>,
+    >;
+
+    fn new_node<N, IntoN>(node: IntoN) -> SignalNode<N>
+    where
+        IntoN: Into<N>,
+        N: NodeWrapper<i32>,
+    {
+        SignalNode::RegisteredNode(node.into())
+    }
+
+    fn new_consumer<C, IntoC>(consumer: IntoC) -> SignalNodeInput<C>
+    where
+        IntoC: Into<C>,
+        C: Copy + Hash,
+    {
+        SignalNodeInput::RegisteredNode(consumer.into())
+    }
+
+    fn new_producer<P, IntoP>(producer: IntoP) -> SignalNodeOutput<P>
+    where
+        IntoP: Into<P>,
+        P: Copy + Hash,
+    {
+        SignalNodeOutput::RegisteredNode(producer.into())
+    }
 
     #[test]
     fn convert_internal_node_to_signal_node() {
@@ -626,16 +657,25 @@ mod tests {
     #[test]
     fn simple_tree() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let two = graph.add_node(Number(2));
-        let plus = graph.add_node(Plus::default());
-        let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
+        let one = graph.add_node(new_node(Number(1)));
+        let two = graph.add_node(new_node(Number(2)));
+        let plus = graph.add_node(new_node(Plus::default()));
+        let recorder = graph.add_node(new_node(Recorder::default()));
+        graph.add_edge(
+            one.producer(new_producer(NumberOutput)),
+            plus.consumer(new_consumer(PlusInput::In1)),
+        );
+        graph.add_edge(
+            two.producer(new_producer(NumberOutput)),
+            plus.consumer(new_consumer(PlusInput::In2)),
+        );
+        graph.add_edge(
+            plus.producer(new_producer(PlusOutput)),
+            recorder.consumer(new_consumer(RecorderInput)),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 3);
     }
 
     // Graph with 2 end consumers:
@@ -650,19 +690,31 @@ mod tests {
     #[test]
     fn multiple_consumers() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let two = graph.add_node(Number(2));
-        let plus = graph.add_node(Plus::default());
-        let recorder1 = graph.add_node(Recorder::default());
-        let recorder2 = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder1.consumer(RecorderInput));
-        graph.add_edge(plus.producer(PlusOutput), recorder2.consumer(RecorderInput));
+        let one = graph.add_node(new_node(Number(1)));
+        let two = graph.add_node(new_node(Number(2)));
+        let plus = graph.add_node(new_node(Plus::default()));
+        let recorder1 = graph.add_node(new_node(Recorder::default()));
+        let recorder2 = graph.add_node(new_node(Recorder::default()));
+        graph.add_edge(
+            one.producer(new_producer(NumberOutput)),
+            plus.consumer(new_consumer(PlusInput::In1)),
+        );
+        graph.add_edge(
+            two.producer(new_producer(NumberOutput)),
+            plus.consumer(new_consumer(PlusInput::In2)),
+        );
+        graph.add_edge(
+            plus.producer(new_producer(PlusOutput)),
+            recorder1.consumer(new_consumer(RecorderInput)),
+        );
+        graph.add_edge(
+            plus.producer(new_producer(PlusOutput)),
+            recorder2.consumer(new_consumer(RecorderInput)),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder2).read(RecorderOutput), 3);
-        assert_eq!(graph.node(&recorder2).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder2).read(new_producer(RecorderOutput)), 3);
+        assert_eq!(graph.node(&recorder2).read(new_producer(RecorderOutput)), 3);
     }
 
     // Graph with a loop:
