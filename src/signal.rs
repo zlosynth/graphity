@@ -2,7 +2,7 @@
 // TODO: Would apply feedback nodes if needed
 // TODO: Would know how to traverse the graph
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
 use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
@@ -223,6 +223,7 @@ where
     <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
     graph: Graph<i32, N, NI>,
+    feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
 }
 
 impl<N, NI> SignalGraph<N, NI>
@@ -237,6 +238,7 @@ where
     pub fn new() -> Self {
         Self {
             graph: Graph::new(),
+            feedback_edges: HashMap::new(),
         }
     }
 
@@ -248,7 +250,7 @@ where
     }
 
     pub fn remove_node(&mut self, node_index: NI) {
-        self.graph.remove_node(node_index)
+        self.graph.remove_node(node_index);
     }
 
     pub fn node(&self, node_index: &NI) -> &N {
@@ -278,7 +280,7 @@ where
             set
         };
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
-            self.remove_edge(producer, consumer);
+            self.graph.remove_edge(producer, consumer);
             let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<i32>();
             let feedback_source = self
                 .graph
@@ -294,13 +296,59 @@ where
                 feedback_sink.producer(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
                 consumer,
             );
+            self.feedback_edges
+                .insert((producer, consumer), (feedback_source, feedback_sink));
         }
     }
 
     pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
-        self.graph.remove_edge(producer, consumer)
-        // TODO: Consider feedbacks too
+        if self.graph.has_edge(producer, consumer) {
+            self.graph.remove_edge(producer, consumer);
+        } else if self.feedback_edges.contains_key(&(producer, consumer)) {
+            let (source_index, sink_index) =
+                self.feedback_edges.get(&(producer, consumer)).unwrap();
+            self.graph.remove_node(*source_index);
+            self.graph.remove_node(*sink_index);
+            self.feedback_edges.remove(&(producer, consumer));
+        }
+
         // TODO: Remove as many feedbacks as possible
+        // TODO: Make this pretty, this is horrendus
+        {
+            let mut edges_to_remove = HashSet::new();
+            for ((producer, consumer), (feedback_source_index, feedback_sink_index)) in
+                self.feedback_edges.iter()
+            {
+                self.graph.add_edge(*producer, *consumer);
+
+                let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
+                let edges: HashSet<(_, _)> = {
+                    let mut set = HashSet::new();
+                    for (source_index, destination_indexes) in self.graph.edges.iter() {
+                        for destination_index in destination_indexes.iter() {
+                            set.insert((source_index.node_index, destination_index.node_index));
+                        }
+                    }
+                    set
+                };
+
+                let has_cycle = match sort::topological_sort(nodes, edges) {
+                    Err(Cycle) => true,
+                    Ok(_) => false,
+                };
+
+                if has_cycle {
+                    self.graph.remove_edge(*producer, *consumer);
+                } else {
+                    self.graph.remove_node(*feedback_source_index);
+                    self.graph.remove_node(*feedback_sink_index);
+                    edges_to_remove.insert((*producer, *consumer));
+                }
+            }
+            for (producer, consumer) in edges_to_remove.iter() {
+                self.feedback_edges.remove(&(*producer, *consumer));
+            }
+        }
     }
 
     pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
@@ -800,4 +848,7 @@ mod tests {
     }
 
     // TODO: Test that feedback is considered an edge
+    // TODO: Test that node removal drops edges
+    // TODO: Test all the feedback stuff
+    // TODO: Test that feedbacks are removed
 }
