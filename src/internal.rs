@@ -10,6 +10,7 @@ pub enum InternalNode<T> {
     FeedbackSink(FeedbackSink<T>),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum InternalNodeClass {
     FeedbackSource,
     FeedbackSink,
@@ -131,12 +132,13 @@ pub struct InternalNodeIndex {
 }
 
 pub type InternalConsumerIndex =
-    ConsumerIndex<InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
+    ConsumerIndex<InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
 pub type InternalProducerIndex =
-    ProducerIndex<InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
+    ProducerIndex<InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
 
-impl NodeIndex<InternalNodeInput, InternalNodeOutput> for InternalNodeIndex {
-    fn new(index: usize) -> Self {
+impl NodeIndex<InternalNodeClass, InternalNodeInput, InternalNodeOutput> for InternalNodeIndex {
+    // TODO: Use class
+    fn new(_class: InternalNodeClass, index: usize) -> Self {
         Self { index }
     }
 

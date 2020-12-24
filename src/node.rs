@@ -1,6 +1,7 @@
 use std::hash::Hash;
 
 // TODO: Define producer and consumer traits here too, both internal and external
+// TODO: Implement class for NodeClass and then drop NodeWrapper requirement from Graph
 
 pub trait NodeWrapper<T: Default> {
     type Consumer: Copy + Hash;

@@ -1,57 +1,63 @@
 // TODO: Implement iterator for nodes and edges once it is clear which are needed
+// TODO: Move all the types to associated types, to clean up
 use std::collections::{hash_map, HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
+use crate::node::NodeWrapper;
+
 // TODO: Keep Node class too, to make sure that the consumer/producer is available in the given node
-pub trait NodeIndex<C, P>: Copy + Hash + Eq {
-    // TODO: Pass N reference to this
-    fn new(index: usize) -> Self;
-    fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<Self, C, P>
+pub trait NodeIndex<NC, C, P>: Copy + Hash + Eq {
+    fn new(class: NC, index: usize) -> Self;
+    fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<NC, Self, C, P>
     where
         IntoC: Into<C>;
-    fn producer<IntoP>(&self, producer: IntoP) -> ProducerIndex<Self, C, P>
+    fn producer<IntoP>(&self, producer: IntoP) -> ProducerIndex<NC, Self, C, P>
     where
         IntoP: Into<P>;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ConsumerIndex<NI, C, P> {
+pub struct ConsumerIndex<NC, NI, C, P> {
     pub node_index: NI,
     pub consumer: C,
+    _class: PhantomData<NC>,
     _producer: PhantomData<P>,
 }
 
-impl<NI, C, P> ConsumerIndex<NI, C, P>
+impl<NI, NC, C, P> ConsumerIndex<NC, NI, C, P>
 where
-    NI: NodeIndex<C, P>,
+    NI: NodeIndex<NC, C, P>,
     C: Copy + Hash,
 {
     pub fn new(node_index: NI, consumer: C) -> Self {
         Self {
             node_index,
             consumer,
+            _class: PhantomData,
             _producer: PhantomData,
         }
     }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ProducerIndex<NI, C, P> {
+pub struct ProducerIndex<NC, NI, C, P> {
     pub node_index: NI,
     pub producer: P,
+    _class: PhantomData<NC>,
     _consumer: PhantomData<C>,
 }
 
-impl<NI, C, P> ProducerIndex<NI, C, P>
+impl<NI, NC, C, P> ProducerIndex<NC, NI, C, P>
 where
-    NI: NodeIndex<C, P>,
+    NI: NodeIndex<NC, C, P>,
     P: Copy + Hash,
 {
     pub fn new(node_index: NI, producer: P) -> Self {
         Self {
             node_index,
             producer,
+            _class: PhantomData,
             _consumer: PhantomData,
         }
     }
@@ -62,21 +68,31 @@ where
 // Each node is further divided into producers and consumers
 // with MAX 1 indegree for each consumer and arbitrary number of outdegrees for producer
 // all consumers of a node are connected to all producers of the node
-pub struct Graph<N, NI, C, P> {
+pub struct Graph<T, N, NC, NI, C, P>
+where
+    T: Default,
+    N: NodeWrapper<T, Class = NC>,
+{
     index_counter: usize,
     // TODO: Must make this private
     pub nodes: HashMap<NI, N>,
     // TODO: Must make this private
     // TODO: Turn this to a basic hashset until all usecases are identified
-    pub edges: HashMap<ProducerIndex<NI, C, P>, HashSet<ConsumerIndex<NI, C, P>>>,
+    pub edges: HashMap<ProducerIndex<NC, NI, C, P>, HashSet<ConsumerIndex<NC, NI, C, P>>>,
+    _type: PhantomData<T>,
+    _class: PhantomData<NC>,
     _consumer: PhantomData<C>,
     _producer: PhantomData<P>,
 }
 
 // TODO: Make this into a trait, so it can be implemented by the signal graph too
-impl<N, NI, C, P> Graph<N, NI, C, P>
+impl<T, N, NC, NI, C, P> Graph<T, N, NC, NI, C, P>
 where
-    NI: NodeIndex<C, P>,
+    // TODO: Limit the trait for .class()
+    T: Default,
+    N: NodeWrapper<T, Class = NC>,
+    NI: NodeIndex<NC, C, P>,
+    NC: Eq + Hash,
     C: Eq + Hash,
     P: Eq + Hash,
 {
@@ -85,6 +101,8 @@ where
             index_counter: 0,
             nodes: HashMap::new(),
             edges: HashMap::new(),
+            _type: PhantomData,
+            _class: PhantomData,
             _consumer: PhantomData,
             _producer: PhantomData,
         }
@@ -94,8 +112,9 @@ where
     where
         IntoN: Into<N>,
     {
-        let index = NI::new(self.index_counter);
-        self.nodes.insert(index, node.into());
+        let node = node.into();
+        let index = NI::new(node.class(), self.index_counter);
+        self.nodes.insert(index, node);
         self.index_counter += 1;
         index
     }
@@ -133,8 +152,8 @@ where
 
     pub fn add_edge(
         &mut self,
-        producer: ProducerIndex<NI, C, P>,
-        consumer: ConsumerIndex<NI, C, P>,
+        producer: ProducerIndex<NC, NI, C, P>,
+        consumer: ConsumerIndex<NC, NI, C, P>,
     ) {
         self.edges
             .iter()
@@ -151,8 +170,8 @@ where
 
     pub fn remove_edge(
         &mut self,
-        producer: ProducerIndex<NI, C, P>,
-        consumer: ConsumerIndex<NI, C, P>,
+        producer: ProducerIndex<NC, NI, C, P>,
+        consumer: ConsumerIndex<NC, NI, C, P>,
     ) {
         if let Some(consumers) = self.edges.get_mut(&producer) {
             consumers.remove(&consumer);
@@ -164,8 +183,8 @@ where
 
     pub fn has_edge(
         &mut self,
-        producer: ProducerIndex<NI, C, P>,
-        consumer: ConsumerIndex<NI, C, P>,
+        producer: ProducerIndex<NC, NI, C, P>,
+        consumer: ConsumerIndex<NC, NI, C, P>,
     ) -> bool {
         match self.edges.get(&producer) {
             Some(consumers) => consumers.contains(&consumer),
@@ -176,7 +195,7 @@ where
     // TODO: Define a proper iterator once it is clear whether one is needed
     pub fn edges(
         &self,
-    ) -> hash_map::Iter<ProducerIndex<NI, C, P>, HashSet<ConsumerIndex<NI, C, P>>> {
+    ) -> hash_map::Iter<ProducerIndex<NC, NI, C, P>, HashSet<ConsumerIndex<NC, NI, C, P>>> {
         self.edges.iter()
     }
 }
@@ -186,22 +205,65 @@ mod tests {
     use super::*;
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+    struct TestNode(i32);
+
+    impl NodeWrapper<i32> for TestNode {
+        type Consumer = TestConsumer;
+        type Producer = TestProducer;
+        type Class = TestNodeClass;
+
+        fn class(&self) -> Self::Class {
+            TestNodeClass
+        }
+
+        fn tick(&mut self) {
+            todo!();
+        }
+
+        fn read<IntoP>(&self, producer: IntoP) -> i32
+        where
+            IntoP: Into<Self::Producer>,
+        {
+            todo!();
+        }
+
+        fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
+        where
+            IntoC: Into<Self::Consumer>,
+        {
+            todo!();
+        }
+    }
+
+    impl From<i32> for TestNode {
+        fn from(n: i32) -> Self {
+            Self(n)
+        }
+    }
+
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestNodeIndex {
         index: usize,
     }
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+    struct TestNodeClass;
+
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestConsumer;
 
-    type TestConsumerIndex = ConsumerIndex<TestNodeIndex, TestConsumer, TestProducer>;
+    type TestConsumerIndex =
+        ConsumerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestProducer;
 
-    type TestProducerIndex = ProducerIndex<TestNodeIndex, TestConsumer, TestProducer>;
+    type TestProducerIndex =
+        ProducerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
 
-    impl NodeIndex<TestConsumer, TestProducer> for TestNodeIndex {
-        fn new(index: usize) -> Self {
+    impl NodeIndex<TestNodeClass, TestConsumer, TestProducer> for TestNodeIndex {
+        // TODO: Use class?
+        fn new(_class: TestNodeClass, index: usize) -> Self {
             Self { index }
         }
 
@@ -220,23 +282,23 @@ mod tests {
         }
     }
 
-    type TestGraph = Graph<i32, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestGraph = Graph<i32, TestNode, TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
 
     #[test]
     fn initialize_node_index() {
-        let _node_index = TestNodeIndex::new(0);
+        let _node_index = TestNodeIndex::new(TestNodeClass, 0);
     }
 
     #[test]
     fn get_consumer_index() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
 
         let _consumer_index = node_index.consumer(TestConsumer);
     }
 
     #[test]
     fn get_consumer_index_node_index() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
         assert_eq!(consumer_index.node_index, node_index)
@@ -244,7 +306,7 @@ mod tests {
 
     #[test]
     fn get_consumer_index_consumer() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
         assert_eq!(consumer_index.consumer, TestConsumer)
@@ -252,14 +314,14 @@ mod tests {
 
     #[test]
     fn get_producer_index() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
 
         let _producer_index = node_index.producer(TestProducer);
     }
 
     #[test]
     fn get_producer_index_node_index() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
         assert_eq!(producer_index.node_index, node_index)
@@ -267,7 +329,7 @@ mod tests {
 
     #[test]
     fn get_producer_index_producer() {
-        let node_index = TestNodeIndex::new(0);
+        let node_index = TestNodeIndex::new(TestNodeClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
         assert_eq!(producer_index.producer, TestProducer)
@@ -301,7 +363,7 @@ mod tests {
         let mut graph = TestGraph::new();
         let index = graph.add_node(10);
 
-        assert_eq!(*graph.node(&index), 10);
+        assert_eq!(*graph.node(&index), TestNode(10));
     }
 
     #[test]
@@ -309,7 +371,7 @@ mod tests {
     fn panic_on_get_nonexistent_node() {
         let graph = TestGraph::new();
 
-        graph.node(&NodeIndex::new(100));
+        graph.node(&NodeIndex::new(TestNodeClass, 100));
     }
 
     #[test]
@@ -317,8 +379,8 @@ mod tests {
         let mut graph = TestGraph::new();
         let index = graph.add_node(10);
 
-        *graph.node_mut(&index) = 20;
-        assert_eq!(*graph.node(&index), 20);
+        *graph.node_mut(&index) = 20.into();
+        assert_eq!(*graph.node(&index), 20.into());
     }
 
     #[test]
@@ -326,7 +388,7 @@ mod tests {
     fn panic_on_get_nonexistent_node_mut() {
         let mut graph = TestGraph::new();
 
-        graph.node_mut(&NodeIndex::new(100));
+        graph.node_mut(&NodeIndex::new(TestNodeClass, 100));
     }
 
     #[test]
