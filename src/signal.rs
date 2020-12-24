@@ -1,6 +1,4 @@
 // TODO: Implemented over graph trait
-// TODO: Would apply feedback nodes if needed
-// TODO: Would know how to traverse the graph
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -16,8 +14,6 @@ use crate::node::{
     ExternalConsumer, ExternalNodeWrapper, ExternalProducer, NodeClass, NodeWrapper,
 };
 use crate::sort;
-
-// TODO XXX The node index must be implemented on signalnode level
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SignalNodeIndex<NI> {
@@ -714,15 +710,12 @@ mod tests {
 
     type TestProducerIndex = ProducerIndex<TestNodeIndex>;
 
-    // type TestSignalGraph = SignalGraph<TestNode, TestNodeIndex, TestConsumer, TestProducer>;
-    // TODO: Wrap it
     type TestSignalGraph = SignalGraph<SignalNode<TestNode>, SignalNodeIndex<TestNodeIndex>>;
 
     #[test]
     fn convert_internal_node_to_signal_node() {
         let (source, _sink) = feedback::new_feedback_pair();
 
-        // TODO: Implement Into
         let _node: SignalNode<TestNode> = source.into();
     }
 
