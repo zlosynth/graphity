@@ -29,27 +29,18 @@ pub enum SignalNodeClass<NC> {
     InternalNode(InternalNodeClass),
 }
 
-pub type SignalNodeInputIndex<NC, NI, C, P> = ConsumerIndex<
-    SignalNodeClass<NC>,
-    SignalNodeIndex<NI>,
-    SignalNodeInput<C>,
-    SignalNodeOutput<P>,
->;
-pub type SignalNodeOutputIndex<NC, NI, C, P> = ProducerIndex<
-    SignalNodeClass<NC>,
-    SignalNodeIndex<NI>,
-    SignalNodeInput<C>,
-    SignalNodeOutput<P>,
->;
+pub type SignalNodeInputIndex<NI> = ConsumerIndex<SignalNodeIndex<NI>>;
+pub type SignalNodeOutputIndex<NI> = ProducerIndex<SignalNodeIndex<NI>>;
 
-impl<NI, NC, C, P> NodeIndex<SignalNodeClass<NC>, SignalNodeInput<C>, SignalNodeOutput<P>>
-    for SignalNodeIndex<NI>
+impl<NI> NodeIndex for SignalNodeIndex<NI>
 where
-    NI: NodeIndex<NC, C, P>,
-    C: Copy + Hash,
-    P: Copy + Hash,
+    NI: NodeIndex,
 {
-    fn new(class: SignalNodeClass<NC>, index: usize) -> Self {
+    type Class = SignalNodeClass<NI::Class>;
+    type Consumer = SignalNodeInput<NI::Consumer>;
+    type Producer = SignalNodeOutput<NI::Producer>;
+
+    fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
         match class {
             SignalNodeClass::RegisteredNode(class) => Self::RegisteredNode(NI::new(class, index)),
             SignalNodeClass::InternalNode(class) => {
@@ -58,16 +49,16 @@ where
         }
     }
 
-    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeInputIndex<NC, NI, C, P>
+    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeInputIndex<NI>
     where
-        IntoC: Into<SignalNodeInput<C>>,
+        IntoC: Into<SignalNodeInput<NI::Consumer>>,
     {
         ConsumerIndex::new(*self, consumer.into())
     }
 
-    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeOutputIndex<NC, NI, C, P>
+    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeOutputIndex<NI>
     where
-        IntoP: Into<SignalNodeOutput<P>>,
+        IntoP: Into<SignalNodeOutput<NI::Producer>>,
     {
         ProducerIndex::new(*self, producer.into())
     }
@@ -224,28 +215,24 @@ where
 
 // TODO XXX Implement Node over SignalNode
 
-struct SignalGraph<N, NC, NI, C, P>
+struct SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NC>,
-    NC: Copy + Eq + Hash,
-    C: Copy + Eq + Hash,
-
-    P: Copy + Eq + Hash,
-    <N as NodeWrapper<i32>>::Producer: std::convert::From<P>,
-    <N as NodeWrapper<i32>>::Consumer: std::convert::From<C>,
+    N: NodeWrapper<i32, Class = NI::Class>,
+    NI: NodeIndex,
+    <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
+    <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
-    graph: Graph<i32, N, NC, NI, C, P>,
+    graph: Graph<i32, N, NI>,
 }
 
-impl<N, NC, NI, C, P> SignalGraph<N, NC, NI, C, P>
+impl<N, NI> SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NC> + std::convert::From<InternalNode<i32>>,
-    NI: NodeIndex<NC, C, P>,
-    NC: Copy + Eq + Hash,
-    C: Copy + Eq + Hash + std::convert::From<InternalNodeInput>,
-    P: Copy + Eq + Hash + std::convert::From<InternalNodeOutput>,
-    <N as NodeWrapper<i32>>::Producer: std::convert::From<P>,
-    <N as NodeWrapper<i32>>::Consumer: std::convert::From<C>,
+    N: NodeWrapper<i32, Class = NI::Class> + std::convert::From<InternalNode<i32>>,
+    NI: NodeIndex,
+    NI::Consumer: Copy + Eq + Hash + std::convert::From<InternalNodeInput>,
+    NI::Producer: Copy + Eq + Hash + std::convert::From<InternalNodeOutput>,
+    <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
+    <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
     pub fn new() -> Self {
         Self {
@@ -272,11 +259,7 @@ where
         self.graph.node_mut(node_index)
     }
 
-    pub fn add_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) {
+    pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
         if self.has_edge(producer, consumer) {
             return;
         }
@@ -314,21 +297,13 @@ where
         }
     }
 
-    pub fn remove_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) {
+    pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
         self.graph.remove_edge(producer, consumer)
         // TODO: Consider feedbacks too
         // TODO: Remove as many feedbacks as possible
     }
 
-    pub fn has_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) -> bool {
+    pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
         // TODO: Consider feedbacks too
         self.graph.has_edge(producer, consumer)
     }
@@ -607,7 +582,11 @@ mod tests {
         // TODO: Keep the Node class too, so we can verify that the consumer belongs to it
     }
 
-    impl NodeIndex<TestNodeClass, TestConsumer, TestProducer> for TestNodeIndex {
+    impl NodeIndex for TestNodeIndex {
+        type Class = TestNodeClass;
+        type Consumer = TestConsumer;
+        type Producer = TestProducer;
+
         fn new(_class: TestNodeClass, index: usize) -> Self {
             Self { index }
         }
@@ -636,8 +615,7 @@ mod tests {
 
     impl ExternalConsumer for TestConsumer {}
 
-    type TestConsumerIndex =
-        ConsumerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestConsumerIndex = ConsumerIndex<TestNodeIndex>;
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     enum TestProducer {
@@ -648,18 +626,11 @@ mod tests {
 
     impl ExternalProducer for TestProducer {}
 
-    type TestProducerIndex =
-        ProducerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestProducerIndex = ProducerIndex<TestNodeIndex>;
 
     // type TestSignalGraph = SignalGraph<TestNode, TestNodeIndex, TestConsumer, TestProducer>;
     // TODO: Wrap it
-    type TestSignalGraph = SignalGraph<
-        SignalNode<TestNode>,
-        SignalNodeClass<TestNodeClass>,
-        SignalNodeIndex<TestNodeIndex>,
-        SignalNodeInput<TestConsumer>,
-        SignalNodeOutput<TestProducer>,
-    >;
+    type TestSignalGraph = SignalGraph<SignalNode<TestNode>, SignalNodeIndex<TestNodeIndex>>;
 
     fn new_node<N, IntoN>(node: IntoN) -> SignalNode<N>
     where

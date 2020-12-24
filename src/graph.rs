@@ -6,31 +6,37 @@ use std::marker::PhantomData;
 
 use crate::node::NodeClass;
 
-// TODO: Keep Node class too, to make sure that the consumer/producer is available in the given node
-pub trait NodeIndex<NC, C, P>: Copy + Hash + Eq {
-    fn new(class: NC, index: usize) -> Self;
-    fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<NC, Self, C, P>
+pub trait NodeIndex: Copy + Hash + Eq {
+    type Class: Copy + Hash + Eq;
+    type Consumer: Copy + Hash + Eq;
+    type Producer: Copy + Hash + Eq;
+
+    fn new(class: Self::Class, index: usize) -> Self;
+    fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<Self>
     where
-        IntoC: Into<C>;
-    fn producer<IntoP>(&self, producer: IntoP) -> ProducerIndex<NC, Self, C, P>
+        IntoC: Into<Self::Consumer>;
+    fn producer<IntoP>(&self, producer: IntoP) -> ProducerIndex<Self>
     where
-        IntoP: Into<P>;
+        IntoP: Into<Self::Producer>;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ConsumerIndex<NC, NI, C, P> {
+pub struct ConsumerIndex<NI>
+where
+    NI: NodeIndex,
+{
+    // TODO: Can we keep only the NI Phantom?
     pub node_index: NI,
-    pub consumer: C,
-    _class: PhantomData<NC>,
-    _producer: PhantomData<P>,
+    pub consumer: NI::Consumer,
+    _class: PhantomData<NI::Class>,
+    _producer: PhantomData<NI::Producer>,
 }
 
-impl<NI, NC, C, P> ConsumerIndex<NC, NI, C, P>
+impl<NI> ConsumerIndex<NI>
 where
-    NI: NodeIndex<NC, C, P>,
-    C: Copy + Hash,
+    NI: NodeIndex,
 {
-    pub fn new(node_index: NI, consumer: C) -> Self {
+    pub fn new(node_index: NI, consumer: NI::Consumer) -> Self {
         Self {
             node_index,
             consumer,
@@ -41,19 +47,21 @@ where
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ProducerIndex<NC, NI, C, P> {
+pub struct ProducerIndex<NI>
+where
+    NI: NodeIndex,
+{
     pub node_index: NI,
-    pub producer: P,
-    _class: PhantomData<NC>,
-    _consumer: PhantomData<C>,
+    pub producer: NI::Producer,
+    _class: PhantomData<NI::Class>,
+    _consumer: PhantomData<NI::Consumer>,
 }
 
-impl<NI, NC, C, P> ProducerIndex<NC, NI, C, P>
+impl<NI> ProducerIndex<NI>
 where
-    NI: NodeIndex<NC, C, P>,
-    P: Copy + Hash,
+    NI: NodeIndex,
 {
-    pub fn new(node_index: NI, producer: P) -> Self {
+    pub fn new(node_index: NI, producer: NI::Producer) -> Self {
         Self {
             node_index,
             producer,
@@ -68,33 +76,31 @@ where
 // Each node is further divided into producers and consumers
 // with MAX 1 indegree for each consumer and arbitrary number of outdegrees for producer
 // all consumers of a node are connected to all producers of the node
-pub struct Graph<T, N, NC, NI, C, P>
+pub struct Graph<T, N, NI>
 where
     T: Default,
-    N: NodeClass<Class = NC>,
+    N: NodeClass<Class = NI::Class>,
+    NI: NodeIndex,
 {
     index_counter: usize,
     // TODO: Must make this private
     pub nodes: HashMap<NI, N>,
     // TODO: Must make this private
     // TODO: Turn this to a basic hashset until all usecases are identified
-    pub edges: HashMap<ProducerIndex<NC, NI, C, P>, HashSet<ConsumerIndex<NC, NI, C, P>>>,
+    pub edges: HashMap<ProducerIndex<NI>, HashSet<ConsumerIndex<NI>>>,
     _type: PhantomData<T>,
-    _class: PhantomData<NC>,
-    _consumer: PhantomData<C>,
-    _producer: PhantomData<P>,
+    // TODO XXX NEXT Drop all the types that can be taken from NI
+    _class: PhantomData<NI::Class>,
+    _consumer: PhantomData<NI::Consumer>,
+    _producer: PhantomData<NI::Producer>,
 }
 
 // TODO: Make this into a trait, so it can be implemented by the signal graph too
-impl<T, N, NC, NI, C, P> Graph<T, N, NC, NI, C, P>
+impl<T, N, NI> Graph<T, N, NI>
 where
-    // TODO: Limit the trait for .class()
     T: Default,
-    N: NodeClass<Class = NC>,
-    NI: NodeIndex<NC, C, P>,
-    NC: Eq + Hash,
-    C: Eq + Hash,
-    P: Eq + Hash,
+    N: NodeClass<Class = NI::Class>,
+    NI: NodeIndex,
 {
     pub fn new() -> Self {
         Self {
@@ -150,11 +156,7 @@ where
         self.nodes.values_mut()
     }
 
-    pub fn add_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) {
+    pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
         self.edges
             .iter()
             .for_each(|(existing_producer, existing_consumers)| {
@@ -168,11 +170,7 @@ where
             .insert(consumer);
     }
 
-    pub fn remove_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) {
+    pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
         if let Some(consumers) = self.edges.get_mut(&producer) {
             consumers.remove(&consumer);
             if consumers.is_empty() {
@@ -181,11 +179,7 @@ where
         }
     }
 
-    pub fn has_edge(
-        &mut self,
-        producer: ProducerIndex<NC, NI, C, P>,
-        consumer: ConsumerIndex<NC, NI, C, P>,
-    ) -> bool {
+    pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
         match self.edges.get(&producer) {
             Some(consumers) => consumers.contains(&consumer),
             None => false,
@@ -193,9 +187,7 @@ where
     }
 
     // TODO: Define a proper iterator once it is clear whether one is needed
-    pub fn edges(
-        &self,
-    ) -> hash_map::Iter<ProducerIndex<NC, NI, C, P>, HashSet<ConsumerIndex<NC, NI, C, P>>> {
+    pub fn edges(&self) -> hash_map::Iter<ProducerIndex<NI>, HashSet<ConsumerIndex<NI>>> {
         self.edges.iter()
     }
 }
@@ -232,16 +224,18 @@ mod tests {
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestConsumer;
 
-    type TestConsumerIndex =
-        ConsumerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestConsumerIndex = ConsumerIndex<TestNodeIndex>;
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestProducer;
 
-    type TestProducerIndex =
-        ProducerIndex<TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestProducerIndex = ProducerIndex<TestNodeIndex>;
 
-    impl NodeIndex<TestNodeClass, TestConsumer, TestProducer> for TestNodeIndex {
+    impl NodeIndex for TestNodeIndex {
+        type Class = TestNodeClass;
+        type Consumer = TestConsumer;
+        type Producer = TestProducer;
+
         // TODO: Use class?
         fn new(_class: TestNodeClass, index: usize) -> Self {
             Self { index }
@@ -262,7 +256,7 @@ mod tests {
         }
     }
 
-    type TestGraph = Graph<i32, TestNode, TestNodeClass, TestNodeIndex, TestConsumer, TestProducer>;
+    type TestGraph = Graph<i32, TestNode, TestNodeIndex>;
 
     #[test]
     fn initialize_node_index() {

@@ -134,14 +134,17 @@ pub struct InternalNodeIndex {
     // TODO: Keep the Node class too, so we can verify that the consumer belongs to it
 }
 
-pub type InternalConsumerIndex =
-    ConsumerIndex<InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
-pub type InternalProducerIndex =
-    ProducerIndex<InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
+pub type InternalConsumerIndex = ConsumerIndex<InternalNodeIndex>;
+pub type InternalProducerIndex = ProducerIndex<InternalNodeIndex>;
 
-impl NodeIndex<InternalNodeClass, InternalNodeInput, InternalNodeOutput> for InternalNodeIndex {
+impl NodeIndex for InternalNodeIndex {
+    type Class = InternalNodeClass;
+    type Consumer = InternalNodeInput;
+    type Producer = InternalNodeOutput;
+
+    // TODO: Use associated types
     // TODO: Use class
-    fn new(_class: InternalNodeClass, index: usize) -> Self {
+    fn new(_class: Self::Class, index: usize) -> Self {
         Self { index }
     }
 
