@@ -1,5 +1,8 @@
-use crate::feedback::*;
-use crate::node::*;
+use crate::feedback::{
+    FeedbackSink, FeedbackSinkInput, FeedbackSinkOutput, FeedbackSource, FeedbackSourceInput,
+    FeedbackSourceOutput,
+};
+use crate::node::{Node, NodeWrapper};
 
 pub enum InternalNode {
     FeedbackSource(FeedbackSource<i32>),
@@ -73,11 +76,11 @@ impl NodeWrapper<i32> for InternalNode {
         match self {
             Self::FeedbackSource(feedback_source) => match producer {
                 Self::Producer::FeedbackSource(producer) => feedback_source.read(producer),
-                _ => panic!("Bad bad, not good"),
+                _ => panic!("Node does not provide given producer"),
             },
             Self::FeedbackSink(feedback_sink) => match producer {
                 Self::Producer::FeedbackSink(producer) => feedback_sink.read(producer),
-                _ => panic!("Bad bad, not good"),
+                _ => panic!("Node does not provide given producer"),
             },
         }
     }
@@ -92,14 +95,37 @@ impl NodeWrapper<i32> for InternalNode {
                 Self::Consumer::FeedbackSource(consumer) => {
                     feedback_source.write(consumer.into(), input)
                 }
-                _ => panic!("Bad bad, not good"),
+                _ => panic!("Node does not provide given consumer"),
             },
             Self::FeedbackSink(feedback_sink) => match consumer {
                 Self::Consumer::FeedbackSink(consumer) => {
                     feedback_sink.write(consumer.into(), input)
                 }
-                _ => panic!("Bad bad, not good"),
+                _ => panic!("Node does not provide given consumer"),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::feedback;
+
+    #[test]
+    fn convert_into_internal() {
+        let (source, sink) = feedback::new_feedback_pair();
+        let _source: InternalNode = source.into();
+        let _sink: InternalNode = sink.into();
+    }
+
+    #[test]
+    fn access_nested_node() {
+        let (source, sink) = feedback::new_feedback_pair();
+        let mut source: InternalNode = source.into();
+        let sink: InternalNode = sink.into();
+
+        source.write(FeedbackSourceInput, 10);
+        sink.read(FeedbackSinkOutput);
     }
 }
