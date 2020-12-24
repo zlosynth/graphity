@@ -22,7 +22,6 @@ pub trait NodeWrapper<T: Default> {
 }
 
 pub trait ExternalNodeWrapper<T: Default>: NodeWrapper<T> {}
-pub trait InternalNodeWrapper<T: Default>: NodeWrapper<T> {}
 
 pub trait Node<T: Default> {
     type Consumer: Copy + Hash;

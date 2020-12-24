@@ -7,9 +7,7 @@ use std::hash::Hash;
 
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{InternalNode, InternalNodeInput, InternalNodeOutput};
-use crate::node::{
-    ExternalConsumer, ExternalNodeWrapper, ExternalProducer, InternalNodeWrapper, Node, NodeWrapper,
-};
+use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 use crate::sort;
 
 pub enum SignalNode<N>
@@ -51,7 +49,7 @@ where
 // TODO: Is this used?
 impl<N> From<InternalNode<i32>> for SignalNode<N>
 where
-    N: InternalNodeWrapper<i32>,
+    N: NodeWrapper<i32>,
 {
     fn from(node: InternalNode<i32>) -> Self {
         Self::InternalNode(node)
