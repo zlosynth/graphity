@@ -10,9 +10,7 @@ use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
 };
-use crate::node::{
-    ExternalConsumer, ExternalNodeWrapper, ExternalProducer, NodeClass, NodeWrapper,
-};
+use crate::node::{NodeClass, NodeWrapper};
 use crate::sort;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -86,64 +84,6 @@ where
 {
     RegisteredNode(P),
     InternalNode(InternalNodeOutput),
-}
-
-// TODO: Is this used?
-impl<N> From<N> for SignalNode<N>
-where
-    N: ExternalNodeWrapper<i32>,
-{
-    fn from(node: N) -> Self {
-        Self::RegisteredNode(node.into())
-    }
-}
-
-// TODO XXX Implement From for all stuff than can be into'd into N
-
-// TODO: Is this used?
-impl<N> From<InternalNode<i32>> for SignalNode<N>
-where
-    N: NodeWrapper<i32>,
-{
-    fn from(node: InternalNode<i32>) -> Self {
-        Self::InternalNode(node)
-    }
-}
-
-impl<C> From<InternalNodeInput> for SignalNodeInput<C>
-where
-    C: Copy + Hash,
-{
-    fn from(consumer: InternalNodeInput) -> Self {
-        Self::InternalNode(consumer.into())
-    }
-}
-
-impl<P> From<InternalNodeOutput> for SignalNodeOutput<P>
-where
-    P: Copy + Hash,
-{
-    fn from(producer: InternalNodeOutput) -> Self {
-        Self::InternalNode(producer.into())
-    }
-}
-
-impl<C> From<C> for SignalNodeInput<C>
-where
-    C: ExternalConsumer,
-{
-    fn from(consumer: C) -> Self {
-        Self::RegisteredNode(consumer.into())
-    }
-}
-
-impl<P> From<P> for SignalNodeOutput<P>
-where
-    P: ExternalProducer,
-{
-    fn from(producer: P) -> Self {
-        Self::RegisteredNode(producer.into())
-    }
 }
 
 impl<N> From<FeedbackSource<i32>> for SignalNode<N>
@@ -262,10 +202,12 @@ where
 
 impl<N, NI> SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NI::Class> + std::convert::From<InternalNode<i32>>,
+    N: NodeWrapper<i32, Class = NI::Class>
+        + std::convert::From<FeedbackSource<i32>>
+        + std::convert::From<FeedbackSink<i32>>,
     NI: NodeIndex,
-    NI::Consumer: Copy + Eq + Hash + std::convert::From<InternalNodeInput>,
-    NI::Producer: Copy + Eq + Hash + std::convert::From<InternalNodeOutput>,
+    NI::Consumer: Copy + Eq + Hash + std::convert::From<FeedbackSourceInput>,
+    NI::Producer: Copy + Eq + Hash + std::convert::From<FeedbackSinkOutput>,
     <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
     <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
@@ -316,20 +258,12 @@ where
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
             self.graph.remove_edge(producer, consumer);
             let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<i32>();
-            let feedback_source = self
-                .graph
-                .add_node(InternalNode::FeedbackSource(feedback_source));
-            let feedback_sink = self
-                .graph
-                .add_node(InternalNode::FeedbackSink(feedback_sink));
-            self.graph.add_edge(
-                producer,
-                feedback_source.consumer(InternalNodeInput::FeedbackSource(FeedbackSourceInput)),
-            );
-            self.graph.add_edge(
-                feedback_sink.producer(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
-                consumer,
-            );
+            let feedback_source = self.graph.add_node(feedback_source);
+            let feedback_sink = self.graph.add_node(feedback_sink);
+            self.graph
+                .add_edge(producer, feedback_source.consumer(FeedbackSourceInput));
+            self.graph
+                .add_edge(feedback_sink.producer(FeedbackSinkOutput), consumer);
             self.feedback_edges
                 .insert((producer, consumer), (feedback_source, feedback_sink));
         }
@@ -440,7 +374,7 @@ where
 mod tests {
     use super::*;
     use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
-    use crate::node::{Node, NodeWrapper};
+    use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
     // TODO: Can we drop the Eq requirement?
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
