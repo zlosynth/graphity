@@ -5,7 +5,9 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
+use crate::feedback::{
+    self, FeedbackSink, FeedbackSinkOutput, FeedbackSource, FeedbackSourceInput,
+};
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
@@ -145,6 +147,42 @@ where
 {
     fn from(producer: P) -> Self {
         Self::RegisteredNode(producer.into())
+    }
+}
+
+impl<N> From<FeedbackSource<i32>> for SignalNode<N>
+where
+    N: NodeWrapper<i32>,
+{
+    fn from(feedback_source: FeedbackSource<i32>) -> Self {
+        Self::InternalNode(InternalNode::FeedbackSource(feedback_source))
+    }
+}
+
+impl<N> From<FeedbackSink<i32>> for SignalNode<N>
+where
+    N: NodeWrapper<i32>,
+{
+    fn from(feedback_sink: FeedbackSink<i32>) -> Self {
+        Self::InternalNode(InternalNode::FeedbackSink(feedback_sink))
+    }
+}
+
+impl<C> From<FeedbackSourceInput> for SignalNodeInput<C>
+where
+    C: Hash + Copy,
+{
+    fn from(feedback_source: FeedbackSourceInput) -> Self {
+        Self::InternalNode(InternalNodeInput::FeedbackSource(feedback_source))
+    }
+}
+
+impl<P> From<FeedbackSinkOutput> for SignalNodeOutput<P>
+where
+    P: Hash + Copy,
+{
+    fn from(feedback_sink: FeedbackSinkOutput) -> Self {
+        Self::InternalNode(InternalNodeOutput::FeedbackSink(feedback_sink))
     }
 }
 
@@ -685,7 +723,7 @@ mod tests {
         let (source, _sink) = feedback::new_feedback_pair();
 
         // TODO: Implement Into
-        let _node: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
+        let _node: SignalNode<TestNode> = source.into();
     }
 
     #[test]
@@ -696,14 +734,13 @@ mod tests {
     #[test]
     fn write_tick_read_internal_signal_node() {
         let (source, sink) = feedback::new_feedback_pair();
-        let mut source: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
-        let mut sink: SignalNode<TestNode> = SignalNode::InternalNode(sink.into());
+        let mut source: SignalNode<TestNode> = source.into();
+        let mut sink: SignalNode<TestNode> = sink.into();
 
-        source.write(InternalNodeInput::FeedbackSource(FeedbackSourceInput), 10);
-        assert_eq!(
-            sink.read(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
-            10
-        );
+        source.write(FeedbackSourceInput, 10);
+        source.tick();
+        sink.tick();
+        assert_eq!(sink.read(FeedbackSinkOutput), 10);
     }
 
     #[test]
@@ -711,10 +748,10 @@ mod tests {
         let mut node: SignalNode<TestNode> = Plus::default().into();
 
         // TODO: This would be ideally without wrapping
-        node.write(TestConsumer::Plus(PlusInput::In1), 10);
-        node.write(TestConsumer::Plus(PlusInput::In2), 20);
+        node.write(PlusInput::In1, 10);
+        node.write(PlusInput::In2, 20);
         node.tick();
-        assert_eq!(node.read(TestProducer::Plus(PlusOutput)), 30);
+        assert_eq!(node.read(PlusOutput), 30);
     }
 
     // Simple tree:
