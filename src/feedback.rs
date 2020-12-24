@@ -71,15 +71,19 @@ mod tests {
 
     #[test]
     fn pass_data_to_sink_i32() {
-        let (mut source, sink) = new_feedback_pair();
+        let (mut source, mut sink) = new_feedback_pair();
         source.write(FeedbackSourceInput, 10);
+        source.tick();
+        sink.tick();
         assert_eq!(sink.read(FeedbackSinkOutput), 10);
     }
 
     #[test]
     fn pass_data_to_sink_array_i32() {
-        let (mut source, sink) = new_feedback_pair();
+        let (mut source, mut sink) = new_feedback_pair();
         source.write(FeedbackSourceInput, [10, 20]);
+        source.tick();
+        sink.tick();
         assert_eq!(sink.read(FeedbackSinkOutput), [10, 20]);
     }
 }

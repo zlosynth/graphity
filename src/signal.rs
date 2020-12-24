@@ -15,7 +15,7 @@ where
     N: NodeWrapper<i32>,
 {
     RegisteredNode(N),
-    InternalNode(InternalNode),
+    InternalNode(InternalNode<i32>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

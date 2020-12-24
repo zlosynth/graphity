@@ -4,9 +4,9 @@ use crate::feedback::{
 };
 use crate::node::{Node, NodeWrapper};
 
-pub enum InternalNode {
-    FeedbackSource(FeedbackSource<i32>),
-    FeedbackSink(FeedbackSink<i32>),
+pub enum InternalNode<T> {
+    FeedbackSource(FeedbackSource<T>),
+    FeedbackSink(FeedbackSink<T>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -21,14 +21,14 @@ pub enum InternalNodeOutput {
     FeedbackSink(FeedbackSinkOutput),
 }
 
-impl From<FeedbackSource<i32>> for InternalNode {
-    fn from(feedback_source: FeedbackSource<i32>) -> Self {
+impl<T> From<FeedbackSource<T>> for InternalNode<T> {
+    fn from(feedback_source: FeedbackSource<T>) -> Self {
         Self::FeedbackSource(feedback_source)
     }
 }
 
-impl From<FeedbackSink<i32>> for InternalNode {
-    fn from(feedback_sink: FeedbackSink<i32>) -> Self {
+impl<T> From<FeedbackSink<T>> for InternalNode<T> {
+    fn from(feedback_sink: FeedbackSink<T>) -> Self {
         Self::FeedbackSink(feedback_sink)
     }
 }
@@ -57,7 +57,10 @@ impl From<FeedbackSinkOutput> for InternalNodeOutput {
     }
 }
 
-impl NodeWrapper<i32> for InternalNode {
+impl<T> NodeWrapper<T> for InternalNode<T>
+where
+    T: Default + Clone,
+{
     type Consumer = InternalNodeInput;
     type Producer = InternalNodeOutput;
 
@@ -68,7 +71,7 @@ impl NodeWrapper<i32> for InternalNode {
         }
     }
 
-    fn read<IntoP>(&self, producer: IntoP) -> i32
+    fn read<IntoP>(&self, producer: IntoP) -> T
     where
         IntoP: Into<Self::Producer>,
     {
@@ -85,7 +88,7 @@ impl NodeWrapper<i32> for InternalNode {
         }
     }
 
-    fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
+    fn write<IntoC>(&mut self, consumer: IntoC, input: T)
     where
         IntoC: Into<Self::Consumer>,
     {
@@ -115,17 +118,31 @@ mod tests {
     #[test]
     fn convert_into_internal() {
         let (source, sink) = feedback::new_feedback_pair();
-        let _source: InternalNode = source.into();
-        let _sink: InternalNode = sink.into();
+        let _source: InternalNode<i32> = source.into();
+        let _sink: InternalNode<i32> = sink.into();
     }
 
     #[test]
-    fn access_nested_node() {
+    fn access_nested_node_i32() {
         let (source, sink) = feedback::new_feedback_pair();
-        let mut source: InternalNode = source.into();
-        let sink: InternalNode = sink.into();
+        let mut source: InternalNode<_> = source.into();
+        let mut sink: InternalNode<_> = sink.into();
 
         source.write(FeedbackSourceInput, 10);
+        source.tick();
+        sink.tick();
+        assert_eq!(sink.read(FeedbackSinkOutput), 10);
+    }
+
+    #[test]
+    fn access_nested_node_array_i32() {
+        let (source, sink) = feedback::new_feedback_pair();
+        let mut source: InternalNode<_> = source.into();
+        let mut sink: InternalNode<_> = sink.into();
+
+        source.write(FeedbackSourceInput, [10, 20]);
+        source.tick();
+        sink.tick();
         sink.read(FeedbackSinkOutput);
     }
 }
