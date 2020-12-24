@@ -1,5 +1,7 @@
 use std::hash::Hash;
 
+// TODO: Define producer and consumer traits here too, both internal and external
+
 pub trait NodeWrapper<T: Default> {
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
@@ -19,6 +21,9 @@ pub trait NodeWrapper<T: Default> {
         C: Into<Self::Consumer>;
 }
 
+pub trait ExternalNodeWrapper<T: Default>: NodeWrapper<T> {}
+pub trait InternalNodeWrapper<T: Default>: NodeWrapper<T> {}
+
 pub trait Node<T: Default> {
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
@@ -31,3 +36,6 @@ pub trait Node<T: Default> {
 
     fn write(&mut self, _consumer: Self::Consumer, _input: T) {}
 }
+
+pub trait ExternalConsumer: Copy + Hash {}
+pub trait ExternalProducer: Copy + Hash {}

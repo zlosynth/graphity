@@ -7,7 +7,9 @@ use std::hash::Hash;
 
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{InternalNode, InternalNodeInput, InternalNodeOutput};
-use crate::node::{Node, NodeWrapper};
+use crate::node::{
+    ExternalConsumer, ExternalNodeWrapper, ExternalProducer, InternalNodeWrapper, Node, NodeWrapper,
+};
 use crate::sort;
 
 pub enum SignalNode<N>
@@ -36,7 +38,65 @@ where
     InternalNode(InternalNodeOutput),
 }
 
-impl<N> Node<i32> for SignalNode<N>
+// TODO: Is this used?
+impl<N> From<N> for SignalNode<N>
+where
+    N: ExternalNodeWrapper<i32>,
+{
+    fn from(node: N) -> Self {
+        Self::RegisteredNode(node.into())
+    }
+}
+
+// TODO: Is this used?
+impl<N> From<InternalNode<i32>> for SignalNode<N>
+where
+    N: InternalNodeWrapper<i32>,
+{
+    fn from(node: InternalNode<i32>) -> Self {
+        Self::InternalNode(node)
+    }
+}
+
+impl<C> From<InternalNodeInput> for SignalNodeInput<C>
+where
+    C: Copy + Hash,
+{
+    fn from(consumer: InternalNodeInput) -> Self {
+        Self::InternalNode(consumer.into())
+    }
+}
+
+impl<P> From<InternalNodeOutput> for SignalNodeOutput<P>
+where
+    P: Copy + Hash,
+{
+    fn from(producer: InternalNodeOutput) -> Self {
+        Self::InternalNode(producer.into())
+    }
+}
+
+impl<C> From<C> for SignalNodeInput<C>
+where
+    C: ExternalConsumer,
+{
+    fn from(consumer: C) -> Self {
+        Self::RegisteredNode(consumer.into())
+    }
+}
+
+impl<P> From<P> for SignalNodeOutput<P>
+where
+    P: ExternalProducer,
+{
+    fn from(producer: P) -> Self {
+        Self::RegisteredNode(producer.into())
+    }
+}
+
+// TODO How to differentiate between user provided and internal?!
+
+impl<N> NodeWrapper<i32> for SignalNode<N>
 where
     N: NodeWrapper<i32>,
 {
@@ -50,7 +110,11 @@ where
         }
     }
 
-    fn read(&self, producer: Self::Producer) -> i32 {
+    fn read<IntoP>(&self, producer: IntoP) -> i32
+    where
+        IntoP: Into<Self::Producer>,
+    {
+        let producer = producer.into();
         match self {
             Self::RegisteredNode(registered_node) => match producer {
                 Self::Producer::RegisteredNode(producer) => registered_node.read(producer),
@@ -63,7 +127,11 @@ where
         }
     }
 
-    fn write(&mut self, consumer: Self::Consumer, input: i32) {
+    fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
+    where
+        IntoC: Into<Self::Consumer>,
+    {
+        let consumer = consumer.into();
         match self {
             Self::RegisteredNode(registered_node) => match consumer {
                 Self::Consumer::RegisteredNode(consumer) => registered_node.write(consumer, input),
@@ -193,15 +261,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
+    use crate::node::{Node, NodeWrapper};
 
     // TODO: Can we drop the Eq requirement?
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct Number(i32);
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum NumberInput {}
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct NumberOutput;
 
     impl Node<i32> for Number {
@@ -238,13 +308,13 @@ mod tests {
         output: i32,
     }
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum PlusInput {
         In1,
         In2,
     }
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct PlusOutput;
 
     impl Node<i32> for Plus {
@@ -288,10 +358,10 @@ mod tests {
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Default)]
     struct Recorder(i32);
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct RecorderInput;
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct RecorderOutput;
 
     impl Node<i32> for Recorder {
@@ -370,6 +440,7 @@ mod tests {
             IntoC: Into<Self::Consumer>,
         {
             let consumer = consumer.into();
+            dbg!(consumer);
             match self {
                 Self::Number(number) => match consumer {
                     Self::Consumer::Number(consumer) => number.write(consumer.into(), input),
@@ -387,10 +458,13 @@ mod tests {
         }
     }
 
+    impl ExternalNodeWrapper<i32> for TestNode {}
+
     // TODO: Can we move this and its implementation to a lib too?
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct TestNodeIndex {
         index: usize,
+        // TODO: Keep the Node class too, so we can verify that the consumer belongs to it
     }
 
     impl NodeIndex<TestConsumer, TestProducer> for TestNodeIndex {
@@ -413,12 +487,14 @@ mod tests {
         }
     }
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+    #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum TestConsumer {
         Number(NumberInput),
         Plus(PlusInput),
         Recorder(RecorderInput),
     }
+
+    impl ExternalConsumer for TestConsumer {}
 
     type TestConsumerIndex = ConsumerIndex<TestNodeIndex, TestConsumer, TestProducer>;
 
@@ -429,9 +505,48 @@ mod tests {
         Recorder(RecorderOutput),
     }
 
+    impl ExternalProducer for TestProducer {}
+
     type TestProducerIndex = ProducerIndex<TestNodeIndex, TestConsumer, TestProducer>;
 
     type TestSignalGraph = SignalGraph<TestNode, TestNodeIndex, TestConsumer, TestProducer>;
+
+    #[test]
+    fn convert_internal_node_to_signal_node() {
+        let (source, _sink) = feedback::new_feedback_pair();
+
+        let _node: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
+    }
+
+    #[test]
+    fn convert_registered_node_to_signal_node() {
+        let _node: SignalNode<TestNode> = SignalNode::RegisteredNode(Number(10).into());
+    }
+
+    #[test]
+    fn write_tick_read_internal_signal_node() {
+        let (source, sink) = feedback::new_feedback_pair();
+        let mut source: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
+        let mut sink: SignalNode<TestNode> = SignalNode::InternalNode(sink.into());
+
+        // TODO: This would be ideally without wrapping
+        source.write(InternalNodeInput::FeedbackSource(FeedbackSourceInput), 10);
+        assert_eq!(
+            sink.read(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
+            10
+        );
+    }
+
+    #[test]
+    fn write_tick_read_registered_signal_node() {
+        let mut node: SignalNode<TestNode> = SignalNode::RegisteredNode(Plus::default().into());
+
+        // TODO: This would be ideally without wrapping
+        node.write(TestConsumer::Plus(PlusInput::In1), 10);
+        node.write(TestConsumer::Plus(PlusInput::In2), 20);
+        node.tick();
+        assert_eq!(node.read(TestProducer::Plus(PlusOutput)), 30);
+    }
 
     // Simple tree:
     //
