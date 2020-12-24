@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
@@ -220,6 +221,7 @@ where
     N: NodeWrapper<i32, Class = NC>,
     NC: Copy + Eq + Hash,
     C: Copy + Eq + Hash,
+
     P: Copy + Eq + Hash,
     <N as NodeWrapper<i32>>::Producer: std::convert::From<P>,
     <N as NodeWrapper<i32>>::Consumer: std::convert::From<C>,
@@ -229,11 +231,11 @@ where
 
 impl<N, NC, NI, C, P> SignalGraph<N, NC, NI, C, P>
 where
-    N: NodeWrapper<i32, Class = NC>,
+    N: NodeWrapper<i32, Class = NC> + std::convert::From<InternalNode<i32>>,
     NI: NodeIndex<NC, C, P>,
     NC: Copy + Eq + Hash,
-    C: Copy + Eq + Hash,
-    P: Copy + Eq + Hash,
+    C: Copy + Eq + Hash + std::convert::From<InternalNodeInput>,
+    P: Copy + Eq + Hash + std::convert::From<InternalNodeOutput>,
     <N as NodeWrapper<i32>>::Producer: std::convert::From<P>,
     <N as NodeWrapper<i32>>::Consumer: std::convert::From<C>,
 {
@@ -267,7 +269,41 @@ where
         producer: ProducerIndex<NC, NI, C, P>,
         consumer: ConsumerIndex<NC, NI, C, P>,
     ) {
-        self.graph.add_edge(producer, consumer)
+        if self.has_edge(producer, consumer) {
+            return;
+        }
+
+        self.graph.add_edge(producer, consumer);
+
+        // TODO cleanup
+        let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
+        let edges: HashSet<(_, _)> = {
+            let mut set = HashSet::new();
+            for (source_index, destination_indexes) in self.graph.edges.iter() {
+                for destination_index in destination_indexes.iter() {
+                    set.insert((source_index.node_index, destination_index.node_index));
+                }
+            }
+            set
+        };
+        if let Err(Cycle) = sort::topological_sort(nodes, edges) {
+            self.remove_edge(producer, consumer);
+            let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<i32>();
+            let feedback_source = self
+                .graph
+                .add_node(InternalNode::FeedbackSource(feedback_source));
+            let feedback_sink = self
+                .graph
+                .add_node(InternalNode::FeedbackSink(feedback_sink));
+            self.graph.add_edge(
+                producer,
+                feedback_source.consumer(InternalNodeInput::FeedbackSource(FeedbackSourceInput)),
+            );
+            self.graph.add_edge(
+                feedback_sink.producer(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
+                consumer,
+            );
+        }
     }
 
     pub fn remove_edge(
@@ -276,6 +312,8 @@ where
         consumer: ConsumerIndex<NC, NI, C, P>,
     ) {
         self.graph.remove_edge(producer, consumer)
+        // TODO: Consider feedbacks too
+        // TODO: Remove as many feedbacks as possible
     }
 
     pub fn has_edge(
@@ -283,6 +321,7 @@ where
         producer: ProducerIndex<NC, NI, C, P>,
         consumer: ConsumerIndex<NC, NI, C, P>,
     ) -> bool {
+        // TODO: Consider feedbacks too
         self.graph.has_edge(producer, consumer)
     }
 
@@ -740,7 +779,7 @@ mod tests {
         );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder2).read(new_producer(RecorderOutput)), 3);
+        assert_eq!(graph.node(&recorder1).read(new_producer(RecorderOutput)), 3);
         assert_eq!(graph.node(&recorder2).read(new_producer(RecorderOutput)), 3);
     }
 
@@ -755,6 +794,28 @@ mod tests {
     // Should feedback and keep increasing the recorded value.
     #[test]
     fn internal_cycle() {
-        //panic!("Not implemented");
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(new_node(Number(1)));
+        let plus = graph.add_node(new_node(Plus::default()));
+        let recorder = graph.add_node(new_node(Recorder::default()));
+        graph.add_edge(
+            one.producer(new_producer(NumberOutput)),
+            plus.consumer(new_consumer(PlusInput::In1)),
+        );
+        graph.add_edge(
+            plus.producer(new_producer(PlusOutput)),
+            plus.consumer(new_consumer(PlusInput::In2)),
+        );
+        graph.add_edge(
+            plus.producer(new_producer(PlusOutput)),
+            recorder.consumer(new_consumer(RecorderInput)),
+        );
+
+        graph.tick();
+        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 1);
+        graph.tick();
+        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 2);
     }
+
+    // TODO: Test that feedback is considered an edge
 }
