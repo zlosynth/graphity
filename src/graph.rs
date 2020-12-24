@@ -4,7 +4,7 @@ use std::collections::{hash_map, HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use crate::node::NodeWrapper;
+use crate::node::NodeClass;
 
 // TODO: Keep Node class too, to make sure that the consumer/producer is available in the given node
 pub trait NodeIndex<NC, C, P>: Copy + Hash + Eq {
@@ -71,7 +71,7 @@ where
 pub struct Graph<T, N, NC, NI, C, P>
 where
     T: Default,
-    N: NodeWrapper<T, Class = NC>,
+    N: NodeClass<Class = NC>,
 {
     index_counter: usize,
     // TODO: Must make this private
@@ -90,7 +90,7 @@ impl<T, N, NC, NI, C, P> Graph<T, N, NC, NI, C, P>
 where
     // TODO: Limit the trait for .class()
     T: Default,
-    N: NodeWrapper<T, Class = NC>,
+    N: NodeClass<Class = NC>,
     NI: NodeIndex<NC, C, P>,
     NC: Eq + Hash,
     C: Eq + Hash,
@@ -207,31 +207,11 @@ mod tests {
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestNode(i32);
 
-    impl NodeWrapper<i32> for TestNode {
-        type Consumer = TestConsumer;
-        type Producer = TestProducer;
+    impl NodeClass for TestNode {
         type Class = TestNodeClass;
 
         fn class(&self) -> Self::Class {
             TestNodeClass
-        }
-
-        fn tick(&mut self) {
-            todo!();
-        }
-
-        fn read<IntoP>(&self, producer: IntoP) -> i32
-        where
-            IntoP: Into<Self::Producer>,
-        {
-            todo!();
-        }
-
-        fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
-        where
-            IntoC: Into<Self::Consumer>,
-        {
-            todo!();
         }
     }
 

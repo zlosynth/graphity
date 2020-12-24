@@ -10,7 +10,9 @@ use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
 };
-use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, NodeWrapper};
+use crate::node::{
+    ExternalConsumer, ExternalNodeWrapper, ExternalProducer, NodeClass, NodeWrapper,
+};
 use crate::sort;
 
 // TODO XXX The node index must be implemented on signalnode level
@@ -155,12 +157,10 @@ where
 
 // TODO How to differentiate between user provided and internal?!
 
-impl<N> NodeWrapper<i32> for SignalNode<N>
+impl<N> NodeClass for SignalNode<N>
 where
-    N: NodeWrapper<i32>,
+    N: NodeClass + NodeWrapper<i32>,
 {
-    type Consumer = SignalNodeInput<N::Consumer>;
-    type Producer = SignalNodeOutput<N::Producer>;
     type Class = SignalNodeClass<N::Class>;
 
     fn class(&self) -> Self::Class {
@@ -171,6 +171,14 @@ where
             Self::InternalNode(internal_node) => Self::Class::InternalNode(internal_node.class()),
         }
     }
+}
+
+impl<N> NodeWrapper<i32> for SignalNode<N>
+where
+    N: NodeWrapper<i32>,
+{
+    type Consumer = SignalNodeInput<N::Consumer>;
+    type Producer = SignalNodeOutput<N::Producer>;
 
     fn tick(&mut self) {
         match self {
@@ -522,9 +530,7 @@ mod tests {
         Recorder,
     }
 
-    impl NodeWrapper<i32> for TestNode {
-        type Consumer = TestConsumer;
-        type Producer = TestProducer;
+    impl NodeClass for TestNode {
         type Class = TestNodeClass;
 
         fn class(&self) -> Self::Class {
@@ -534,6 +540,11 @@ mod tests {
                 Self::Recorder(_) => TestNodeClass::Recorder,
             }
         }
+    }
+
+    impl NodeWrapper<i32> for TestNode {
+        type Consumer = TestConsumer;
+        type Producer = TestProducer;
 
         fn tick(&mut self) {
             match self {

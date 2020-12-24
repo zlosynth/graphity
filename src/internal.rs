@@ -3,7 +3,7 @@ use crate::feedback::{
     FeedbackSourceOutput,
 };
 use crate::graph::{ConsumerIndex, NodeIndex, ProducerIndex};
-use crate::node::{Node, NodeWrapper};
+use crate::node::{Node, NodeClass, NodeWrapper};
 
 pub enum InternalNode<T> {
     FeedbackSource(FeedbackSource<T>),
@@ -64,12 +64,7 @@ impl From<FeedbackSinkOutput> for InternalNodeOutput {
     }
 }
 
-impl<T> NodeWrapper<T> for InternalNode<T>
-where
-    T: Default + Clone,
-{
-    type Consumer = InternalNodeInput;
-    type Producer = InternalNodeOutput;
+impl<T> NodeClass for InternalNode<T> {
     type Class = InternalNodeClass;
 
     fn class(&self) -> Self::Class {
@@ -78,6 +73,14 @@ where
             InternalNode::FeedbackSink(_) => InternalNodeClass::FeedbackSink,
         }
     }
+}
+
+impl<T> NodeWrapper<T> for InternalNode<T>
+where
+    T: Default + Clone,
+{
+    type Consumer = InternalNodeInput;
+    type Producer = InternalNodeOutput;
 
     fn tick(&mut self) {
         match self {

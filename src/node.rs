@@ -3,12 +3,15 @@ use std::hash::Hash;
 // TODO: Define producer and consumer traits here too, both internal and external
 // TODO: Implement class for NodeClass and then drop NodeWrapper requirement from Graph
 
-pub trait NodeWrapper<T: Default> {
-    type Consumer: Copy + Hash;
-    type Producer: Copy + Hash;
+pub trait NodeClass {
     type Class;
 
     fn class(&self) -> Self::Class;
+}
+
+pub trait NodeWrapper<T: Default>: NodeClass {
+    type Consumer: Copy + Hash;
+    type Producer: Copy + Hash;
 
     fn tick(&mut self);
 
