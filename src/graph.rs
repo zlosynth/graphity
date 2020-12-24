@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 
 // TODO: Keep Node class too, to make sure that the consumer/producer is available in the given node
 pub trait NodeIndex<C, P>: Copy + Hash + Eq {
+    // TODO: Pass N reference to this
     fn new(index: usize) -> Self;
     fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<Self, C, P>
     where

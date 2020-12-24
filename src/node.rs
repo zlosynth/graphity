@@ -5,10 +5,9 @@ use std::hash::Hash;
 pub trait NodeWrapper<T: Default> {
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
-    // TODO: How comes it is not missing in the implementation?
-    //type Class;
+    type Class;
 
-    //fn class(&self) -> Self::Class;
+    fn class(&self) -> Self::Class;
 
     fn tick(&mut self);
 

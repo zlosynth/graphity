@@ -6,9 +6,54 @@ use std::collections::HashSet;
 use std::hash::Hash;
 
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
-use crate::internal::{InternalNode, InternalNodeInput, InternalNodeOutput};
+use crate::internal::{
+    InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
+};
 use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 use crate::sort;
+
+// TODO XXX The node index must be implemented on signalnode level
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum SignalNodeIndex<NI> {
+    RegisteredNode(NI),
+    InternalNode(InternalNodeIndex),
+}
+
+pub enum SignalNodeClass<NC> {
+    RegisteredNode(NC),
+    InternalNode(InternalNodeClass),
+}
+
+pub type SignalNodeInputIndex<NI, C, P> =
+    ConsumerIndex<SignalNodeIndex<NI>, SignalNodeInput<C>, SignalNodeOutput<P>>;
+pub type SignalNodeOutputIndex<NI, C, P> =
+    ProducerIndex<SignalNodeIndex<NI>, SignalNodeInput<C>, SignalNodeOutput<P>>;
+
+impl<NI, C, P> NodeIndex<SignalNodeInput<C>, SignalNodeOutput<P>> for SignalNodeIndex<NI>
+where
+    NI: NodeIndex<C, P>,
+    C: Copy + Hash,
+    P: Copy + Hash,
+{
+    fn new(_index: usize) -> Self {
+        panic!("Do not use this");
+    }
+
+    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeInputIndex<NI, C, P>
+    where
+        IntoC: Into<SignalNodeInput<C>>,
+    {
+        ConsumerIndex::new(*self, consumer.into())
+    }
+
+    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeOutputIndex<NI, C, P>
+    where
+        IntoP: Into<SignalNodeOutput<P>>,
+    {
+        ProducerIndex::new(*self, producer.into())
+    }
+}
 
 pub enum SignalNode<N>
 where
@@ -100,6 +145,16 @@ where
 {
     type Consumer = SignalNodeInput<N::Consumer>;
     type Producer = SignalNodeOutput<N::Producer>;
+    type Class = SignalNodeClass<N::Class>;
+
+    fn class(&self) -> Self::Class {
+        match self {
+            Self::RegisteredNode(registered_node) => {
+                Self::Class::RegisteredNode(registered_node.class())
+            }
+            Self::InternalNode(internal_node) => Self::Class::InternalNode(internal_node.class()),
+        }
+    }
 
     fn tick(&mut self) {
         match self {
@@ -154,9 +209,7 @@ where
 
 impl<N, NI, C, P> SignalGraph<N, NI, C, P>
 where
-    N: NodeWrapper<i32>, // Or just Node, can we support both? Do we want to?
-    <N as NodeWrapper<i32>>::Producer: From<P>,
-    <N as NodeWrapper<i32>>::Consumer: From<C>,
+    N: NodeWrapper<i32>,
     NI: NodeIndex<C, P>,
     C: Copy + Eq + Hash,
     P: Copy + Eq + Hash,
@@ -242,14 +295,14 @@ where
                 }
 
                 for destination_index in destination_indexes.iter() {
-                    let source = self.graph.node(&source_index.node_index);
-                    let output = source.read(source_index.producer);
-                    let destination = self
-                        .graph
-                        .nodes
-                        .get_mut(&destination_index.node_index)
-                        .unwrap();
-                    destination.write(destination_index.consumer, output);
+                    // let source = self.graph.node(&source_index.node_index);
+                    // let output = source.read(source_index.producer);
+                    // let destination = self
+                    //     .graph
+                    //     .nodes
+                    //     .get_mut(&destination_index.node_index)
+                    //     .unwrap();
+                    // destination.write(destination_index.consumer, output);
                 }
             }
         }
@@ -400,9 +453,24 @@ mod tests {
         Recorder(Recorder),
     }
 
+    enum TestNodeClass {
+        Number,
+        Plus,
+        Recorder,
+    }
+
     impl NodeWrapper<i32> for TestNode {
         type Consumer = TestConsumer;
         type Producer = TestProducer;
+        type Class = TestNodeClass;
+
+        fn class(&self) -> Self::Class {
+            match self {
+                Self::Number(_) => TestNodeClass::Number,
+                Self::Plus(_) => TestNodeClass::Plus,
+                Self::Recorder(_) => TestNodeClass::Recorder,
+            }
+        }
 
         fn tick(&mut self) {
             match self {

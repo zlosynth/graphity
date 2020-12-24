@@ -2,11 +2,17 @@ use crate::feedback::{
     FeedbackSink, FeedbackSinkInput, FeedbackSinkOutput, FeedbackSource, FeedbackSourceInput,
     FeedbackSourceOutput,
 };
+use crate::graph::{ConsumerIndex, NodeIndex, ProducerIndex};
 use crate::node::{Node, NodeWrapper};
 
 pub enum InternalNode<T> {
     FeedbackSource(FeedbackSource<T>),
     FeedbackSink(FeedbackSink<T>),
+}
+
+pub enum InternalNodeClass {
+    FeedbackSource,
+    FeedbackSink,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -63,6 +69,14 @@ where
 {
     type Consumer = InternalNodeInput;
     type Producer = InternalNodeOutput;
+    type Class = InternalNodeClass;
+
+    fn class(&self) -> Self::Class {
+        match self {
+            InternalNode::FeedbackSource(_) => InternalNodeClass::FeedbackSource,
+            InternalNode::FeedbackSink(_) => InternalNodeClass::FeedbackSink,
+        }
+    }
 
     fn tick(&mut self) {
         match self {
@@ -110,6 +124,37 @@ where
     }
 }
 
+#[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
+pub struct InternalNodeIndex {
+    index: usize,
+    // TODO: Keep the Node class too, so we can verify that the consumer belongs to it
+}
+
+pub type InternalConsumerIndex =
+    ConsumerIndex<InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
+pub type InternalProducerIndex =
+    ProducerIndex<InternalNodeIndex, InternalNodeInput, InternalNodeOutput>;
+
+impl NodeIndex<InternalNodeInput, InternalNodeOutput> for InternalNodeIndex {
+    fn new(index: usize) -> Self {
+        Self { index }
+    }
+
+    fn consumer<IntoC>(&self, consumer: IntoC) -> InternalConsumerIndex
+    where
+        IntoC: Into<InternalNodeInput>,
+    {
+        ConsumerIndex::new(*self, consumer.into())
+    }
+
+    fn producer<IntoP>(&self, producer: IntoP) -> InternalProducerIndex
+    where
+        IntoP: Into<InternalNodeOutput>,
+    {
+        ProducerIndex::new(*self, producer.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,4 +190,6 @@ mod tests {
         sink.tick();
         sink.read(FeedbackSinkOutput);
     }
+
+    // TODO: Test indexes
 }
