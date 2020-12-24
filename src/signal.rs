@@ -100,6 +100,8 @@ where
     }
 }
 
+// TODO XXX Implement From for all stuff than can be into'd into N
+
 // TODO: Is this used?
 impl<N> From<InternalNode<i32>> for SignalNode<N>
 where
@@ -145,8 +147,6 @@ where
         Self::RegisteredNode(producer.into())
     }
 }
-
-// TODO How to differentiate between user provided and internal?!
 
 impl<N> NodeClass for SignalNode<N>
 where
@@ -427,21 +427,21 @@ mod tests {
         }
     }
 
-    impl From<Number> for TestNode {
+    impl From<Number> for SignalNode<TestNode> {
         fn from(number: Number) -> Self {
-            Self::Number(number)
+            Self::RegisteredNode(TestNode::Number(number))
         }
     }
 
-    impl From<NumberInput> for TestConsumer {
+    impl From<NumberInput> for SignalNodeInput<TestConsumer> {
         fn from(number: NumberInput) -> Self {
-            Self::Number(number)
+            Self::RegisteredNode(TestConsumer::Number(number))
         }
     }
 
-    impl From<NumberOutput> for TestProducer {
+    impl From<NumberOutput> for SignalNodeOutput<TestProducer> {
         fn from(number: NumberOutput) -> Self {
-            Self::Number(number)
+            Self::RegisteredNode(TestProducer::Number(number))
         }
     }
 
@@ -481,21 +481,21 @@ mod tests {
         }
     }
 
-    impl From<Plus> for TestNode {
+    impl From<Plus> for SignalNode<TestNode> {
         fn from(plus: Plus) -> Self {
-            Self::Plus(plus)
+            Self::RegisteredNode(TestNode::Plus(plus))
         }
     }
 
-    impl From<PlusInput> for TestConsumer {
+    impl From<PlusInput> for SignalNodeInput<TestConsumer> {
         fn from(plus: PlusInput) -> Self {
-            Self::Plus(plus)
+            Self::RegisteredNode(TestConsumer::Plus(plus))
         }
     }
 
-    impl From<PlusOutput> for TestProducer {
+    impl From<PlusOutput> for SignalNodeOutput<TestProducer> {
         fn from(plus: PlusOutput) -> Self {
-            Self::Plus(plus)
+            Self::RegisteredNode(TestProducer::Plus(plus))
         }
     }
 
@@ -521,21 +521,21 @@ mod tests {
         }
     }
 
-    impl From<Recorder> for TestNode {
+    impl From<Recorder> for SignalNode<TestNode> {
         fn from(recorder: Recorder) -> Self {
-            Self::Recorder(recorder)
+            Self::RegisteredNode(TestNode::Recorder(recorder))
         }
     }
 
-    impl From<RecorderInput> for TestConsumer {
+    impl From<RecorderInput> for SignalNodeInput<TestConsumer> {
         fn from(recorder: RecorderInput) -> Self {
-            Self::Recorder(recorder)
+            Self::RegisteredNode(TestConsumer::Recorder(recorder))
         }
     }
 
-    impl From<RecorderOutput> for TestProducer {
+    impl From<RecorderOutput> for SignalNodeOutput<TestProducer> {
         fn from(recorder: RecorderOutput) -> Self {
-            Self::Recorder(recorder)
+            Self::RegisteredNode(TestProducer::Recorder(recorder.into()))
         }
     }
 
@@ -680,40 +680,17 @@ mod tests {
     // TODO: Wrap it
     type TestSignalGraph = SignalGraph<SignalNode<TestNode>, SignalNodeIndex<TestNodeIndex>>;
 
-    fn new_node<N, IntoN>(node: IntoN) -> SignalNode<N>
-    where
-        IntoN: Into<N>,
-        N: NodeWrapper<i32>,
-    {
-        SignalNode::RegisteredNode(node.into())
-    }
-
-    fn new_consumer<C, IntoC>(consumer: IntoC) -> SignalNodeInput<C>
-    where
-        IntoC: Into<C>,
-        C: Copy + Hash,
-    {
-        SignalNodeInput::RegisteredNode(consumer.into())
-    }
-
-    fn new_producer<P, IntoP>(producer: IntoP) -> SignalNodeOutput<P>
-    where
-        IntoP: Into<P>,
-        P: Copy + Hash,
-    {
-        SignalNodeOutput::RegisteredNode(producer.into())
-    }
-
     #[test]
     fn convert_internal_node_to_signal_node() {
         let (source, _sink) = feedback::new_feedback_pair();
 
+        // TODO: Implement Into
         let _node: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
     }
 
     #[test]
     fn convert_registered_node_to_signal_node() {
-        let _node: SignalNode<TestNode> = SignalNode::RegisteredNode(Number(10).into());
+        let _node: SignalNode<TestNode> = Number(10).into();
     }
 
     #[test]
@@ -722,7 +699,6 @@ mod tests {
         let mut source: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
         let mut sink: SignalNode<TestNode> = SignalNode::InternalNode(sink.into());
 
-        // TODO: This would be ideally without wrapping
         source.write(InternalNodeInput::FeedbackSource(FeedbackSourceInput), 10);
         assert_eq!(
             sink.read(InternalNodeOutput::FeedbackSink(FeedbackSinkOutput)),
@@ -732,7 +708,7 @@ mod tests {
 
     #[test]
     fn write_tick_read_registered_signal_node() {
-        let mut node: SignalNode<TestNode> = SignalNode::RegisteredNode(Plus::default().into());
+        let mut node: SignalNode<TestNode> = Plus::default().into();
 
         // TODO: This would be ideally without wrapping
         node.write(TestConsumer::Plus(PlusInput::In1), 10);
@@ -753,25 +729,17 @@ mod tests {
     #[test]
     fn simple_tree() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(new_node(Number(1)));
-        let two = graph.add_node(new_node(Number(2)));
-        let plus = graph.add_node(new_node(Plus::default()));
-        let recorder = graph.add_node(new_node(Recorder::default()));
-        graph.add_edge(
-            one.producer(new_producer(NumberOutput)),
-            plus.consumer(new_consumer(PlusInput::In1)),
-        );
-        graph.add_edge(
-            two.producer(new_producer(NumberOutput)),
-            plus.consumer(new_consumer(PlusInput::In2)),
-        );
-        graph.add_edge(
-            plus.producer(new_producer(PlusOutput)),
-            recorder.consumer(new_consumer(RecorderInput)),
-        );
+        let one = graph.add_node(Number(1));
+        let two = graph.add_node(Number(2));
+        let plus = graph.add_node(Plus::default());
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
+        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
+        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 3);
+        // RecorderOutput -> TestProducer -> SignalNodeOutput
+        assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
     }
 
     // Graph with 2 end consumers:
@@ -786,31 +754,19 @@ mod tests {
     #[test]
     fn multiple_consumers() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(new_node(Number(1)));
-        let two = graph.add_node(new_node(Number(2)));
-        let plus = graph.add_node(new_node(Plus::default()));
-        let recorder1 = graph.add_node(new_node(Recorder::default()));
-        let recorder2 = graph.add_node(new_node(Recorder::default()));
-        graph.add_edge(
-            one.producer(new_producer(NumberOutput)),
-            plus.consumer(new_consumer(PlusInput::In1)),
-        );
-        graph.add_edge(
-            two.producer(new_producer(NumberOutput)),
-            plus.consumer(new_consumer(PlusInput::In2)),
-        );
-        graph.add_edge(
-            plus.producer(new_producer(PlusOutput)),
-            recorder1.consumer(new_consumer(RecorderInput)),
-        );
-        graph.add_edge(
-            plus.producer(new_producer(PlusOutput)),
-            recorder2.consumer(new_consumer(RecorderInput)),
-        );
+        let one = graph.add_node(Number(1));
+        let two = graph.add_node(Number(2));
+        let plus = graph.add_node(Plus::default());
+        let recorder1 = graph.add_node(Recorder::default());
+        let recorder2 = graph.add_node(Recorder::default());
+        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
+        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
+        graph.add_edge(plus.producer(PlusOutput), recorder1.consumer(RecorderInput));
+        graph.add_edge(plus.producer(PlusOutput), recorder2.consumer(RecorderInput));
 
         graph.tick();
-        assert_eq!(graph.node(&recorder1).read(new_producer(RecorderOutput)), 3);
-        assert_eq!(graph.node(&recorder2).read(new_producer(RecorderOutput)), 3);
+        assert_eq!(graph.node(&recorder1).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder2).read(RecorderOutput), 3);
     }
 
     // Graph with a loop:
@@ -825,26 +781,17 @@ mod tests {
     #[test]
     fn internal_cycle() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(new_node(Number(1)));
-        let plus = graph.add_node(new_node(Plus::default()));
-        let recorder = graph.add_node(new_node(Recorder::default()));
-        graph.add_edge(
-            one.producer(new_producer(NumberOutput)),
-            plus.consumer(new_consumer(PlusInput::In1)),
-        );
-        graph.add_edge(
-            plus.producer(new_producer(PlusOutput)),
-            plus.consumer(new_consumer(PlusInput::In2)),
-        );
-        graph.add_edge(
-            plus.producer(new_producer(PlusOutput)),
-            recorder.consumer(new_consumer(RecorderInput)),
-        );
+        let one = graph.add_node(Number(1));
+        let plus = graph.add_node(Plus::default());
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
+        graph.add_edge(plus.producer(PlusOutput), plus.consumer(PlusInput::In2));
+        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 1);
+        assert_eq!(graph.node(&recorder).read(RecorderOutput), 1);
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(new_producer(RecorderOutput)), 2);
+        assert_eq!(graph.node(&recorder).read(RecorderOutput), 2);
     }
 
     // TODO: Test that feedback is considered an edge
