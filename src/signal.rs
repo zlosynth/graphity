@@ -16,7 +16,7 @@ use crate::sort;
 // TODO: Define a wrapper that would allow both NodeWrapper implementation and Feedback
 
 // TODO: Rename to SignalNode
-pub enum NodeVessel<N>
+pub enum SignalNode<N>
 where
     N: NodeWrapper<i32>,
 {
@@ -25,7 +25,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum NodeVesselInput<C>
+pub enum SignalNodeInput<C>
 where
     C: Copy + Hash,
 {
@@ -34,7 +34,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum NodeVesselOutput<P>
+pub enum SignalNodeOutput<P>
 where
     P: Copy + Hash,
 {
@@ -42,12 +42,12 @@ where
     InternalNode(InternalNodeOutput),
 }
 
-impl<N> Node<i32> for NodeVessel<N>
+impl<N> Node<i32> for SignalNode<N>
 where
     N: NodeWrapper<i32>,
 {
-    type Consumer = NodeVesselInput<N::Consumer>;
-    type Producer = NodeVesselOutput<N::Producer>;
+    type Consumer = SignalNodeInput<N::Consumer>;
+    type Producer = SignalNodeOutput<N::Producer>;
 
     fn tick(&mut self) {
         match self {
@@ -83,7 +83,7 @@ where
     }
 }
 
-// TODO XXX Implement Node over NodeVessel
+// TODO XXX Implement Node over SignalNode
 
 struct SignalGraph<N, NI, C, P>
 where
