@@ -1,21 +1,15 @@
 // TODO: Implemented over graph trait
 // TODO: Would apply feedback nodes if needed
 // TODO: Would know how to traverse the graph
-// TODO: Implement feedback
-//
-// TODO: Split to multiple modules for internal node, the node vessel, the graph itself, feedback
 
 use std::collections::HashSet;
 use std::hash::Hash;
 
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
-use crate::internal::*;
+use crate::internal::{InternalNode, InternalNodeInput, InternalNodeOutput};
 use crate::node::{Node, NodeWrapper};
 use crate::sort;
 
-// TODO: Define a wrapper that would allow both NodeWrapper implementation and Feedback
-
-// TODO: Rename to SignalNode
 pub enum SignalNode<N>
 where
     N: NodeWrapper<i32>,
