@@ -4,6 +4,7 @@ use std::collections::{hash_map, HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
+// TODO Maybe this should be here instead?
 use crate::node::NodeClass;
 
 pub trait NodeIndex: Copy + Hash + Eq {
@@ -25,11 +26,8 @@ pub struct ConsumerIndex<NI>
 where
     NI: NodeIndex,
 {
-    // TODO: Can we keep only the NI Phantom?
     pub node_index: NI,
     pub consumer: NI::Consumer,
-    _class: PhantomData<NI::Class>,
-    _producer: PhantomData<NI::Producer>,
 }
 
 impl<NI> ConsumerIndex<NI>
@@ -40,8 +38,6 @@ where
         Self {
             node_index,
             consumer,
-            _class: PhantomData,
-            _producer: PhantomData,
         }
     }
 }
@@ -53,8 +49,6 @@ where
 {
     pub node_index: NI,
     pub producer: NI::Producer,
-    _class: PhantomData<NI::Class>,
-    _consumer: PhantomData<NI::Consumer>,
 }
 
 impl<NI> ProducerIndex<NI>
@@ -65,8 +59,6 @@ where
         Self {
             node_index,
             producer,
-            _class: PhantomData,
-            _consumer: PhantomData,
         }
     }
 }
@@ -89,10 +81,6 @@ where
     // TODO: Turn this to a basic hashset until all usecases are identified
     pub edges: HashMap<ProducerIndex<NI>, HashSet<ConsumerIndex<NI>>>,
     _type: PhantomData<T>,
-    // TODO XXX NEXT Drop all the types that can be taken from NI
-    _class: PhantomData<NI::Class>,
-    _consumer: PhantomData<NI::Consumer>,
-    _producer: PhantomData<NI::Producer>,
 }
 
 // TODO: Make this into a trait, so it can be implemented by the signal graph too
@@ -108,9 +96,6 @@ where
             nodes: HashMap::new(),
             edges: HashMap::new(),
             _type: PhantomData,
-            _class: PhantomData,
-            _consumer: PhantomData,
-            _producer: PhantomData,
         }
     }
 

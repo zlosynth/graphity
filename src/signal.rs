@@ -45,6 +45,7 @@ where
         }
     }
 
+    // TODO: Validate against class, test it first
     fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeInputIndex<NI>
     where
         IntoC: Into<SignalNodeInput<NI::Consumer>>,
@@ -52,6 +53,7 @@ where
         ConsumerIndex::new(*self, consumer.into())
     }
 
+    // TODO: Validate against class, test it first
     fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeOutputIndex<NI>
     where
         IntoP: Into<SignalNodeOutput<NI::Producer>>,
