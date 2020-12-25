@@ -17,7 +17,7 @@ where
 }
 
 pub struct FeedbackSource<T> {
-    pub value: Rc<RefCell<T>>,
+    value: Rc<RefCell<T>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -39,7 +39,7 @@ where
 }
 
 pub struct FeedbackSink<T> {
-    pub value: Rc<RefCell<T>>,
+    value: Rc<RefCell<T>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
