@@ -5,11 +5,11 @@ use std::convert::From;
 use std::hash::Hash;
 
 use crate::feedback::{
-    self, FeedbackSink, FeedbackSinkOutput, FeedbackSource, FeedbackSourceInput,
+    self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
-    InternalNode, InternalNodeClass, InternalNodeIndex, InternalNodeInput, InternalNodeOutput,
+    InternalClass, InternalConsumer, InternalNode, InternalNodeIndex, InternalProducer,
 };
 use crate::node::{NodeClass, NodeWrapper};
 use crate::sort;
@@ -23,7 +23,7 @@ pub enum SignalNodeIndex<NI> {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SignalNodeClass<NC> {
     RegisteredNode(NC),
-    InternalNode(InternalNodeClass),
+    InternalNode(InternalClass),
 }
 
 pub type SignalNodeInputIndex<NI> = ConsumerIndex<SignalNodeIndex<NI>>;
@@ -77,7 +77,7 @@ where
     C: Copy + Hash,
 {
     RegisteredNode(C),
-    InternalNode(InternalNodeInput),
+    InternalNode(InternalConsumer),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -86,7 +86,7 @@ where
     P: Copy + Hash,
 {
     RegisteredNode(P),
-    InternalNode(InternalNodeOutput),
+    InternalNode(InternalProducer),
 }
 
 impl<N> From<FeedbackSource<i32>> for SignalNode<N>
@@ -107,21 +107,21 @@ where
     }
 }
 
-impl<C> From<FeedbackSourceInput> for SignalNodeInput<C>
+impl<C> From<FeedbackSourceConsumer> for SignalNodeInput<C>
 where
     C: Hash + Copy,
 {
-    fn from(feedback_source: FeedbackSourceInput) -> Self {
-        Self::InternalNode(InternalNodeInput::FeedbackSource(feedback_source))
+    fn from(feedback_source: FeedbackSourceConsumer) -> Self {
+        Self::InternalNode(InternalConsumer::FeedbackSource(feedback_source))
     }
 }
 
-impl<P> From<FeedbackSinkOutput> for SignalNodeOutput<P>
+impl<P> From<FeedbackSinkProducer> for SignalNodeOutput<P>
 where
     P: Hash + Copy,
 {
-    fn from(feedback_sink: FeedbackSinkOutput) -> Self {
-        Self::InternalNode(InternalNodeOutput::FeedbackSink(feedback_sink))
+    fn from(feedback_sink: FeedbackSinkProducer) -> Self {
+        Self::InternalNode(InternalProducer::FeedbackSink(feedback_sink))
     }
 }
 
@@ -207,8 +207,8 @@ where
     <N as NodeWrapper<i32>>::Producer: From<NI::Producer>,
     <N as NodeWrapper<i32>>::Consumer: From<NI::Consumer>,
     NI: NodeIndex,
-    NI::Consumer: From<FeedbackSourceInput>,
-    NI::Producer: From<FeedbackSinkOutput>,
+    NI::Consumer: From<FeedbackSourceConsumer>,
+    NI::Producer: From<FeedbackSinkProducer>,
 {
     pub fn new() -> Self {
         Self {
@@ -257,9 +257,9 @@ where
             let feedback_source = self.graph.add_node(feedback_source);
             let feedback_sink = self.graph.add_node(feedback_sink);
             self.graph
-                .add_edge(producer, feedback_source.consumer(FeedbackSourceInput));
+                .add_edge(producer, feedback_source.consumer(FeedbackSourceConsumer));
             self.graph
-                .add_edge(feedback_sink.producer(FeedbackSinkOutput), consumer);
+                .add_edge(feedback_sink.producer(FeedbackSinkProducer), consumer);
             self.feedback_edges
                 .insert((producer, consumer), (feedback_source, feedback_sink));
         }
@@ -361,7 +361,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
+    use crate::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
     use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
     struct Number(i32);
@@ -650,10 +650,10 @@ mod tests {
         let mut source: SignalNode<TestNode> = source.into();
         let mut sink: SignalNode<TestNode> = sink.into();
 
-        source.write(FeedbackSourceInput, 10);
+        source.write(FeedbackSourceConsumer, 10);
         source.tick();
         sink.tick();
-        assert_eq!(sink.read(FeedbackSinkOutput), 10);
+        assert_eq!(sink.read(FeedbackSinkProducer), 10);
     }
 
     #[test]
