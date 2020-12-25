@@ -1,6 +1,7 @@
 // TODO: Implemented over graph trait
 
 use std::collections::{HashMap, HashSet};
+use std::convert::From;
 use std::hash::Hash;
 
 use crate::feedback::{
@@ -195,8 +196,6 @@ struct SignalGraph<N, NI>
 where
     N: NodeWrapper<i32, Class = NI::Class>,
     NI: NodeIndex,
-    <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
-    <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
     graph: Graph<N, NI>,
     feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
@@ -204,14 +203,12 @@ where
 
 impl<N, NI> SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NI::Class>
-        + std::convert::From<FeedbackSource<i32>>
-        + std::convert::From<FeedbackSink<i32>>,
+    N: NodeWrapper<i32, Class = NI::Class> + From<FeedbackSource<i32>> + From<FeedbackSink<i32>>,
+    <N as NodeWrapper<i32>>::Producer: From<NI::Producer>,
+    <N as NodeWrapper<i32>>::Consumer: From<NI::Consumer>,
     NI: NodeIndex,
-    NI::Consumer: Copy + Eq + Hash + std::convert::From<FeedbackSourceInput>,
-    NI::Producer: Copy + Eq + Hash + std::convert::From<FeedbackSinkOutput>,
-    <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
-    <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
+    NI::Consumer: From<FeedbackSourceInput>,
+    NI::Producer: From<FeedbackSinkOutput>,
 {
     pub fn new() -> Self {
         Self {
