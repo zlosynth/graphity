@@ -1,10 +1,6 @@
-// TODO: Implement iterator for nodes and edges once it is clear which are needed
-// TODO: Move all the types to associated types, to clean up
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::marker::PhantomData;
 
-// TODO Maybe this should be here instead?
 use crate::node::NodeClass;
 
 pub trait NodeIndex: Copy + Hash + Eq {
@@ -63,25 +59,19 @@ where
     }
 }
 
-// TODO: Doc
-// Directed graph
-// Each node is further divided into producers and consumers
-// with MAX 1 indegree for each consumer and arbitrary number of outdegrees for producer
-// all consumers of a node are connected to all producers of the node
+// Directed graph Each node is further divided into producers and consumers with
+// MAX 1 indegree for each consumer and arbitrary number of outdegrees for
+// producer all consumers of a node are connected to all producers of the node
 pub struct Graph<N, NI>
 where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
 {
     index_counter: usize,
-    // TODO: Must make this private
     pub nodes: HashMap<NI, N>,
-    // TODO: Must make this private
-    // TODO: Turn this to a basic hashset until all usecases are identified
     pub edges: HashSet<(ProducerIndex<NI>, ConsumerIndex<NI>)>,
 }
 
-// TODO: Make this into a trait, so it can be implemented by the signal graph too
 impl<N, NI> Graph<N, NI>
 where
     N: NodeClass<Class = NI::Class>,
@@ -153,10 +143,10 @@ mod tests {
     struct TestNode(i32);
 
     impl NodeClass for TestNode {
-        type Class = TestNodeClass;
+        type Class = TestClass;
 
         fn class(&self) -> Self::Class {
-            TestNodeClass
+            TestClass
         }
     }
 
@@ -172,7 +162,7 @@ mod tests {
     }
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-    struct TestNodeClass;
+    struct TestClass;
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestConsumer;
@@ -185,12 +175,11 @@ mod tests {
     type TestProducerIndex = ProducerIndex<TestNodeIndex>;
 
     impl NodeIndex for TestNodeIndex {
-        type Class = TestNodeClass;
+        type Class = TestClass;
         type Consumer = TestConsumer;
         type Producer = TestProducer;
 
-        // TODO: Use class?
-        fn new(_class: TestNodeClass, index: usize) -> Self {
+        fn new(_class: TestClass, index: usize) -> Self {
             Self { index }
         }
 
@@ -213,19 +202,19 @@ mod tests {
 
     #[test]
     fn initialize_node_index() {
-        let _node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let _node_index = TestNodeIndex::new(TestClass, 0);
     }
 
     #[test]
     fn get_consumer_index() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
 
         let _consumer_index = node_index.consumer(TestConsumer);
     }
 
     #[test]
     fn get_consumer_index_node_index() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
         assert_eq!(consumer_index.node_index, node_index)
@@ -233,7 +222,7 @@ mod tests {
 
     #[test]
     fn get_consumer_index_consumer() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
         assert_eq!(consumer_index.consumer, TestConsumer)
@@ -241,14 +230,14 @@ mod tests {
 
     #[test]
     fn get_producer_index() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
 
         let _producer_index = node_index.producer(TestProducer);
     }
 
     #[test]
     fn get_producer_index_node_index() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
         assert_eq!(producer_index.node_index, node_index)
@@ -256,7 +245,7 @@ mod tests {
 
     #[test]
     fn get_producer_index_producer() {
-        let node_index = TestNodeIndex::new(TestNodeClass, 0);
+        let node_index = TestNodeIndex::new(TestClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
         assert_eq!(producer_index.producer, TestProducer)
@@ -298,7 +287,7 @@ mod tests {
     fn panic_on_get_nonexistent_node() {
         let graph = TestGraph::new();
 
-        graph.node(&NodeIndex::new(TestNodeClass, 100));
+        graph.node(&NodeIndex::new(TestClass, 100));
     }
 
     #[test]
@@ -315,7 +304,7 @@ mod tests {
     fn panic_on_get_nonexistent_node_mut() {
         let mut graph = TestGraph::new();
 
-        graph.node_mut(&NodeIndex::new(TestNodeClass, 100));
+        graph.node_mut(&NodeIndex::new(TestClass, 100));
     }
 
     #[test]
