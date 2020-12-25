@@ -1,5 +1,3 @@
-// TODO: Implemented over graph trait
-
 use std::collections::{HashMap, HashSet};
 use std::convert::From;
 use std::hash::Hash;
@@ -26,38 +24,39 @@ pub enum SignalNodeClass<NC> {
     InternalNode(InternalClass),
 }
 
-pub type SignalNodeInputIndex<NI> = ConsumerIndex<SignalNodeIndex<NI>>;
-pub type SignalNodeOutputIndex<NI> = ProducerIndex<SignalNodeIndex<NI>>;
+pub type SignalNodeConsumerIndex<NI> = ConsumerIndex<SignalNodeIndex<NI>>;
+pub type SignalNodeProducerIndex<NI> = ProducerIndex<SignalNodeIndex<NI>>;
 
 impl<NI> NodeIndex for SignalNodeIndex<NI>
 where
     NI: NodeIndex,
 {
     type Class = SignalNodeClass<NI::Class>;
-    type Consumer = SignalNodeInput<NI::Consumer>;
-    type Producer = SignalNodeOutput<NI::Producer>;
+    type Consumer = SignalNodeConsumer<NI::Consumer>;
+    type Producer = SignalNodeProducer<NI::Producer>;
 
     fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
         match class {
-            SignalNodeClass::RegisteredNode(class) => Self::RegisteredNode(NI::new(class, index)),
-            SignalNodeClass::InternalNode(class) => {
+            Self::Class::RegisteredNode(class) => Self::RegisteredNode(NI::new(class, index)),
+            Self::Class::InternalNode(class) => {
                 Self::InternalNode(InternalNodeIndex::new(class, index))
             }
         }
     }
 
     // TODO: Validate against class, test it first
-    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeInputIndex<NI>
+    // TODO: Will it run the validation recursively? Have to call the underlying implementation
+    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeConsumerIndex<NI>
     where
-        IntoC: Into<SignalNodeInput<NI::Consumer>>,
+        IntoC: Into<Self::Consumer>,
     {
         ConsumerIndex::new(*self, consumer.into())
     }
 
     // TODO: Validate against class, test it first
-    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeOutputIndex<NI>
+    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeProducerIndex<NI>
     where
-        IntoP: Into<SignalNodeOutput<NI::Producer>>,
+        IntoP: Into<Self::Producer>,
     {
         ProducerIndex::new(*self, producer.into())
     }
@@ -72,7 +71,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum SignalNodeInput<C>
+pub enum SignalNodeConsumer<C>
 where
     C: Copy + Hash,
 {
@@ -81,7 +80,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum SignalNodeOutput<P>
+pub enum SignalNodeProducer<P>
 where
     P: Copy + Hash,
 {
@@ -107,7 +106,7 @@ where
     }
 }
 
-impl<C> From<FeedbackSourceConsumer> for SignalNodeInput<C>
+impl<C> From<FeedbackSourceConsumer> for SignalNodeConsumer<C>
 where
     C: Hash + Copy,
 {
@@ -116,7 +115,7 @@ where
     }
 }
 
-impl<P> From<FeedbackSinkProducer> for SignalNodeOutput<P>
+impl<P> From<FeedbackSinkProducer> for SignalNodeProducer<P>
 where
     P: Hash + Copy,
 {
@@ -145,8 +144,8 @@ impl<N> NodeWrapper<i32> for SignalNode<N>
 where
     N: NodeWrapper<i32>,
 {
-    type Consumer = SignalNodeInput<N::Consumer>;
-    type Producer = SignalNodeOutput<N::Producer>;
+    type Consumer = SignalNodeConsumer<N::Consumer>;
+    type Producer = SignalNodeProducer<N::Producer>;
 
     fn tick(&mut self) {
         match self {
@@ -189,8 +188,6 @@ where
         }
     }
 }
-
-// TODO XXX Implement Node over SignalNode
 
 struct SignalGraph<N, NI>
 where
@@ -276,7 +273,6 @@ where
             self.feedback_edges.remove(&(producer, consumer));
         }
 
-        // TODO: Remove as many feedbacks as possible
         // TODO: Make this pretty, this is horrendus
         {
             let mut edges_to_remove = HashSet::new();
@@ -387,13 +383,13 @@ mod tests {
         }
     }
 
-    impl From<NumberInput> for SignalNodeInput<TestConsumer> {
+    impl From<NumberInput> for SignalNodeConsumer<TestConsumer> {
         fn from(number: NumberInput) -> Self {
             Self::RegisteredNode(TestConsumer::Number(number))
         }
     }
 
-    impl From<NumberOutput> for SignalNodeOutput<TestProducer> {
+    impl From<NumberOutput> for SignalNodeProducer<TestProducer> {
         fn from(number: NumberOutput) -> Self {
             Self::RegisteredNode(TestProducer::Number(number))
         }
@@ -441,13 +437,13 @@ mod tests {
         }
     }
 
-    impl From<PlusInput> for SignalNodeInput<TestConsumer> {
+    impl From<PlusInput> for SignalNodeConsumer<TestConsumer> {
         fn from(plus: PlusInput) -> Self {
             Self::RegisteredNode(TestConsumer::Plus(plus))
         }
     }
 
-    impl From<PlusOutput> for SignalNodeOutput<TestProducer> {
+    impl From<PlusOutput> for SignalNodeProducer<TestProducer> {
         fn from(plus: PlusOutput) -> Self {
             Self::RegisteredNode(TestProducer::Plus(plus))
         }
@@ -481,19 +477,18 @@ mod tests {
         }
     }
 
-    impl From<RecorderInput> for SignalNodeInput<TestConsumer> {
+    impl From<RecorderInput> for SignalNodeConsumer<TestConsumer> {
         fn from(recorder: RecorderInput) -> Self {
             Self::RegisteredNode(TestConsumer::Recorder(recorder))
         }
     }
 
-    impl From<RecorderOutput> for SignalNodeOutput<TestProducer> {
+    impl From<RecorderOutput> for SignalNodeProducer<TestProducer> {
         fn from(recorder: RecorderOutput) -> Self {
             Self::RegisteredNode(TestProducer::Recorder(recorder.into()))
         }
     }
 
-    // TODO: This would be implemented by the macro too
     enum TestNode {
         Number(Number),
         Plus(Plus),
@@ -559,10 +554,7 @@ mod tests {
             let consumer = consumer.into();
             dbg!(consumer);
             match self {
-                Self::Number(number) => match consumer {
-                    Self::Consumer::Number(consumer) => number.write(consumer.into(), input),
-                    _ => panic!("Bad bad, not good"),
-                },
+                Self::Number(_) => panic!("Bad bad, not good"),
                 Self::Plus(plus) => match consumer {
                     Self::Consumer::Plus(consumer) => plus.write(consumer.into(), input),
                     _ => panic!("Bad bad, not good"),
@@ -660,7 +652,6 @@ mod tests {
     fn write_tick_read_registered_signal_node() {
         let mut node: SignalNode<TestNode> = Plus::default().into();
 
-        // TODO: This would be ideally without wrapping
         node.write(PlusInput::In1, 10);
         node.write(PlusInput::In2, 20);
         node.tick();
@@ -688,7 +679,6 @@ mod tests {
         graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
-        // RecorderOutput -> TestProducer -> SignalNodeOutput
         assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
     }
 
