@@ -68,9 +68,8 @@ where
 // Each node is further divided into producers and consumers
 // with MAX 1 indegree for each consumer and arbitrary number of outdegrees for producer
 // all consumers of a node are connected to all producers of the node
-pub struct Graph<T, N, NI>
+pub struct Graph<N, NI>
 where
-    T: Default,
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
 {
@@ -80,13 +79,11 @@ where
     // TODO: Must make this private
     // TODO: Turn this to a basic hashset until all usecases are identified
     pub edges: HashSet<(ProducerIndex<NI>, ConsumerIndex<NI>)>,
-    _type: PhantomData<T>,
 }
 
 // TODO: Make this into a trait, so it can be implemented by the signal graph too
-impl<T, N, NI> Graph<T, N, NI>
+impl<N, NI> Graph<N, NI>
 where
-    T: Default,
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
 {
@@ -95,7 +92,6 @@ where
             index_counter: 0,
             nodes: HashMap::new(),
             edges: HashSet::new(),
-            _type: PhantomData,
         }
     }
 
@@ -213,7 +209,7 @@ mod tests {
         }
     }
 
-    type TestGraph = Graph<i32, TestNode, TestNodeIndex>;
+    type TestGraph = Graph<TestNode, TestNodeIndex>;
 
     #[test]
     fn initialize_node_index() {

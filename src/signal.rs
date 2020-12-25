@@ -198,7 +198,7 @@ where
     <N as NodeWrapper<i32>>::Producer: std::convert::From<NI::Producer>,
     <N as NodeWrapper<i32>>::Consumer: std::convert::From<NI::Consumer>,
 {
-    graph: Graph<i32, N, NI>,
+    graph: Graph<N, NI>,
     feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
 }
 
