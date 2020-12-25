@@ -364,8 +364,6 @@ mod tests {
     use crate::feedback::{self, FeedbackSinkOutput, FeedbackSourceInput};
     use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
-    // TODO: Can we drop the Eq requirement?
-    #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct Number(i32);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
@@ -401,7 +399,7 @@ mod tests {
         }
     }
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash, Default)]
+    #[derive(Default)]
     struct Plus {
         input1: i32,
         input2: i32,
@@ -455,7 +453,7 @@ mod tests {
         }
     }
 
-    #[derive(PartialEq, Eq, Copy, Clone, Hash, Default)]
+    #[derive(Default)]
     struct Recorder(i32);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
@@ -495,7 +493,7 @@ mod tests {
         }
     }
 
-    #[derive(PartialEq, Eq)]
+    // TODO: This would be implemented by the macro too
     enum TestNode {
         Number(Number),
         Plus(Plus),
