@@ -1,6 +1,6 @@
 // TODO: Implement iterator for nodes and edges once it is clear which are needed
 // TODO: Move all the types to associated types, to clean up
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -79,7 +79,7 @@ where
     pub nodes: HashMap<NI, N>,
     // TODO: Must make this private
     // TODO: Turn this to a basic hashset until all usecases are identified
-    pub edges: HashMap<ProducerIndex<NI>, HashSet<ConsumerIndex<NI>>>,
+    pub edges: HashSet<(ProducerIndex<NI>, ConsumerIndex<NI>)>,
     _type: PhantomData<T>,
 }
 
@@ -94,7 +94,7 @@ where
         Self {
             index_counter: 0,
             nodes: HashMap::new(),
-            edges: HashMap::new(),
+            edges: HashSet::new(),
             _type: PhantomData,
         }
     }
@@ -112,12 +112,8 @@ where
 
     pub fn remove_node(&mut self, node_index: NI) {
         self.nodes.remove(&node_index);
-        self.edges.retain(|producer, consumers| {
-            if producer.node_index == node_index {
-                return false;
-            }
-            consumers.retain(|consumer| consumer.node_index != node_index);
-            true
+        self.edges.retain(|(producer, consumer)| {
+            producer.node_index != node_index && consumer.node_index != node_index
         });
     }
 
@@ -133,47 +129,23 @@ where
             .expect("The node for the given index was not found")
     }
 
-    pub fn nodes(&self) -> hash_map::Values<NI, N> {
-        self.nodes.values()
-    }
-
-    pub fn nodes_mut(&mut self) -> hash_map::ValuesMut<NI, N> {
-        self.nodes.values_mut()
-    }
-
     pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
         self.edges
             .iter()
-            .for_each(|(existing_producer, existing_consumers)| {
-                if existing_consumers.contains(&consumer) && *existing_producer != producer {
+            .for_each(|(existing_producer, existing_consumer)| {
+                if *existing_consumer == consumer && *existing_producer != producer {
                     panic!("Each consumer must be connected to the maximum of a single producer at the time");
                 }
             });
-        self.edges
-            .entry(producer)
-            .or_insert_with(HashSet::new)
-            .insert(consumer);
+        self.edges.insert((producer, consumer));
     }
 
     pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
-        if let Some(consumers) = self.edges.get_mut(&producer) {
-            consumers.remove(&consumer);
-            if consumers.is_empty() {
-                self.edges.remove(&producer);
-            }
-        }
+        self.edges.remove(&(producer, consumer));
     }
 
     pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
-        match self.edges.get(&producer) {
-            Some(consumers) => consumers.contains(&consumer),
-            None => false,
-        }
-    }
-
-    // TODO: Define a proper iterator once it is clear whether one is needed
-    pub fn edges(&self) -> hash_map::Iter<ProducerIndex<NI>, HashSet<ConsumerIndex<NI>>> {
-        self.edges.iter()
+        self.edges.contains(&(producer, consumer))
     }
 }
 

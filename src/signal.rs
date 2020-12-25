@@ -248,15 +248,12 @@ where
 
         // TODO cleanup
         let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-        let edges: HashSet<(_, _)> = {
-            let mut set = HashSet::new();
-            for (source_index, destination_indexes) in self.graph.edges.iter() {
-                for destination_index in destination_indexes.iter() {
-                    set.insert((source_index.node_index, destination_index.node_index));
-                }
-            }
-            set
-        };
+        let edges: HashSet<(_, _)> = self
+            .graph
+            .edges
+            .iter()
+            .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+            .collect();
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
             self.graph.remove_edge(producer, consumer);
             let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<i32>();
@@ -292,15 +289,12 @@ where
                 self.graph.add_edge(*producer, *consumer);
 
                 let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-                let edges: HashSet<(_, _)> = {
-                    let mut set = HashSet::new();
-                    for (source_index, destination_indexes) in self.graph.edges.iter() {
-                        for destination_index in destination_indexes.iter() {
-                            set.insert((source_index.node_index, destination_index.node_index));
-                        }
-                    }
-                    set
-                };
+                let edges: HashSet<(_, _)> = self
+                    .graph
+                    .edges
+                    .iter()
+                    .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+                    .collect();
 
                 let has_cycle = match sort::topological_sort(nodes, edges) {
                     Err(Cycle) => true,
@@ -332,15 +326,12 @@ where
 
         // TODO: Improve this
         let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-        let edges: HashSet<(_, _)> = {
-            let mut set = HashSet::new();
-            for (source_index, destination_indexes) in self.graph.edges.iter() {
-                for destination_index in destination_indexes.iter() {
-                    set.insert((source_index.node_index, destination_index.node_index));
-                }
-            }
-            set
-        };
+        let edges: HashSet<(_, _)> = self
+            .graph
+            .edges
+            .iter()
+            .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+            .collect();
 
         let sorted_nodes = match sort::topological_sort(nodes, edges) {
             Ok(nodes) => nodes,
@@ -352,21 +343,19 @@ where
         for node_index in sorted_nodes.iter() {
             self.graph.nodes.get_mut(node_index).unwrap().tick();
 
-            for (source_index, destination_indexes) in self.graph.edges.iter() {
+            for (source_index, destination_index) in self.graph.edges.iter() {
                 if source_index.node_index != *node_index {
                     continue;
                 }
 
-                for destination_index in destination_indexes.iter() {
-                    let source = self.graph.node(&source_index.node_index);
-                    let output = source.read(source_index.producer);
-                    let destination = self
-                        .graph
-                        .nodes
-                        .get_mut(&destination_index.node_index)
-                        .unwrap();
-                    destination.write(destination_index.consumer, output);
-                }
+                let source = self.graph.node(&source_index.node_index);
+                let output = source.read(source_index.producer);
+                let destination = self
+                    .graph
+                    .nodes
+                    .get_mut(&destination_index.node_index)
+                    .unwrap();
+                destination.write(destination_index.consumer, output);
             }
         }
     }
