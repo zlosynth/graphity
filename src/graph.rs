@@ -9,7 +9,7 @@ pub trait NodeIndex: Copy + Hash + Eq {
     // TODO: What about node index association?
     type ConsumerIndex: ConsumerIndexT<NodeIndex = Self, Consumer = Self::Consumer>;
     type Producer: Copy + Hash + Eq;
-    type ProducerIndex: ProducerIndexT<NodeIndex = Self>;
+    type ProducerIndex: ProducerIndexT<NodeIndex = Self, Producer = Self::Producer>;
 
     fn new(class: Self::Class, index: usize) -> Self;
     fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
@@ -72,12 +72,12 @@ where
 }
 
 pub trait ProducerIndexT: Copy + Hash + Eq {
-    type NodeIndex: NodeIndex;
+    type NodeIndex: NodeIndex<Producer = Self::Producer>;
+    type Producer: Copy + Hash + Eq;
 
-    fn new(node_index: Self::NodeIndex, producer: <Self::NodeIndex as NodeIndex>::Producer)
-        -> Self;
+    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self;
     fn node_index(&self) -> Self::NodeIndex;
-    fn producer(&self) -> <Self::NodeIndex as NodeIndex>::Producer;
+    fn producer(&self) -> Self::Producer;
 }
 
 // TODO Consider dropping the default implementation and have it explicit per each
@@ -86,8 +86,9 @@ where
     NI: NodeIndex,
 {
     type NodeIndex = NI;
+    type Producer = NI::Producer;
 
-    fn new(node_index: Self::NodeIndex, producer: NI::Producer) -> Self {
+    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self {
         Self {
             node_index,
             producer,
@@ -98,7 +99,7 @@ where
         self.node_index
     }
 
-    fn producer(&self) -> NI::Producer {
+    fn producer(&self) -> Self::Producer {
         self.producer
     }
 }
@@ -124,7 +125,7 @@ where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
     CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
-    PI: ProducerIndexT<NodeIndex = NI>,
+    PI: ProducerIndexT<NodeIndex = NI, Producer = NI::Producer>,
 {
     pub fn new() -> Self {
         Self {
