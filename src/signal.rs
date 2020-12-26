@@ -64,10 +64,10 @@ where
 
 pub enum SignalNode<N>
 where
-    N: NodeWrapper<i32>,
+    N: NodeWrapper,
 {
     RegisteredNode(N),
-    InternalNode(InternalNode<i32>),
+    InternalNode(InternalNode<N::Payload>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -88,20 +88,20 @@ where
     InternalNode(InternalProducer),
 }
 
-impl<N> From<FeedbackSource<i32>> for SignalNode<N>
+impl<N> From<FeedbackSource<N::Payload>> for SignalNode<N>
 where
-    N: NodeWrapper<i32>,
+    N: NodeWrapper,
 {
-    fn from(feedback_source: FeedbackSource<i32>) -> Self {
+    fn from(feedback_source: FeedbackSource<N::Payload>) -> Self {
         Self::InternalNode(InternalNode::FeedbackSource(feedback_source))
     }
 }
 
-impl<N> From<FeedbackSink<i32>> for SignalNode<N>
+impl<N> From<FeedbackSink<N::Payload>> for SignalNode<N>
 where
-    N: NodeWrapper<i32>,
+    N: NodeWrapper,
 {
-    fn from(feedback_sink: FeedbackSink<i32>) -> Self {
+    fn from(feedback_sink: FeedbackSink<N::Payload>) -> Self {
         Self::InternalNode(InternalNode::FeedbackSink(feedback_sink))
     }
 }
@@ -126,7 +126,7 @@ where
 
 impl<N> NodeClass for SignalNode<N>
 where
-    N: NodeClass + NodeWrapper<i32>,
+    N: NodeClass + NodeWrapper,
 {
     type Class = SignalNodeClass<N::Class>;
 
@@ -140,10 +140,11 @@ where
     }
 }
 
-impl<N> NodeWrapper<i32> for SignalNode<N>
+impl<N> NodeWrapper for SignalNode<N>
 where
-    N: NodeWrapper<i32>,
+    N: NodeWrapper,
 {
+    type Payload = N::Payload;
     type Consumer = SignalNodeConsumer<N::Consumer>;
     type Producer = SignalNodeProducer<N::Producer>;
 
@@ -154,7 +155,7 @@ where
         }
     }
 
-    fn read<IntoP>(&self, producer: IntoP) -> i32
+    fn read<IntoP>(&self, producer: IntoP) -> N::Payload
     where
         IntoP: Into<Self::Producer>,
     {
@@ -171,7 +172,7 @@ where
         }
     }
 
-    fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
+    fn write<IntoC>(&mut self, consumer: IntoC, input: N::Payload)
     where
         IntoC: Into<Self::Consumer>,
     {
@@ -191,18 +192,22 @@ where
 
 struct SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NI::Class>,
+    N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex,
 {
     graph: Graph<N, NI>,
     feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
+    sorted_nodes: Vec<NI>,
 }
 
 impl<N, NI> SignalGraph<N, NI>
 where
-    N: NodeWrapper<i32, Class = NI::Class> + From<FeedbackSource<i32>> + From<FeedbackSink<i32>>,
-    <N as NodeWrapper<i32>>::Producer: From<NI::Producer>,
-    <N as NodeWrapper<i32>>::Consumer: From<NI::Consumer>,
+    // TODO: Try to make it so feedback can be based on anything
+    N: NodeWrapper<Class = NI::Class>,
+    FeedbackSource<N::Payload>: Into<N>,
+    FeedbackSink<N::Payload>: Into<N>,
+    <N as NodeWrapper>::Producer: From<NI::Producer>,
+    <N as NodeWrapper>::Consumer: From<NI::Consumer>,
     NI: NodeIndex,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
@@ -211,6 +216,7 @@ where
         Self {
             graph: Graph::new(),
             feedback_edges: HashMap::new(),
+            sorted_nodes: Vec::new(),
         }
     }
 
@@ -218,11 +224,14 @@ where
     where
         IntoN: Into<N>,
     {
-        self.graph.add_node(node.into())
+        let index = self.graph.add_node(node.into());
+        self.update_cache();
+        index
     }
 
     pub fn remove_node(&mut self, node_index: NI) {
         self.graph.remove_node(node_index);
+        self.update_cache();
     }
 
     pub fn node(&self, node_index: &NI) -> &N {
@@ -250,7 +259,7 @@ where
             .collect();
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
             self.graph.remove_edge(producer, consumer);
-            let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<i32>();
+            let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<N::Payload>();
             let feedback_source = self.graph.add_node(feedback_source);
             let feedback_sink = self.graph.add_node(feedback_sink);
             self.graph
@@ -260,6 +269,8 @@ where
             self.feedback_edges
                 .insert((producer, consumer), (feedback_source, feedback_sink));
         }
+
+        self.update_cache();
     }
 
     pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
@@ -306,6 +317,8 @@ where
                 self.feedback_edges.remove(&(*producer, *consumer));
             }
         }
+
+        self.update_cache();
     }
 
     pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
@@ -313,11 +326,7 @@ where
         self.graph.has_edge(producer, consumer)
     }
 
-    pub fn tick(&mut self) {
-        // TODO: Calculate the path and use it to traverse the graph
-        // TODO: Keep this path in cache
-
-        // TODO: Improve this
+    fn update_cache(&mut self) {
         let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
         let edges: HashSet<(_, _)> = self
             .graph
@@ -331,9 +340,13 @@ where
             _ => panic!("Bad"),
         };
 
+        self.sorted_nodes = sorted_nodes;
+    }
+
+    pub fn tick(&mut self) {
         // TODO: Define a function on graph that would allow us to iterate all node pairs
         // TODO: Make this more efficient
-        for node_index in sorted_nodes.iter() {
+        for node_index in self.sorted_nodes.iter() {
             self.graph.nodes.get_mut(node_index).unwrap().tick();
 
             for (source_index, destination_index) in self.graph.edges.iter() {
@@ -360,7 +373,9 @@ mod tests {
     use crate::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
     use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
-    struct Number(i32);
+    type Payload = i32;
+
+    struct Number(Payload);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum NumberInput {}
@@ -368,11 +383,11 @@ mod tests {
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct NumberOutput;
 
-    impl Node<i32> for Number {
+    impl Node<Payload> for Number {
         type Consumer = NumberInput;
         type Producer = NumberOutput;
 
-        fn read(&self, _producer: Self::Producer) -> i32 {
+        fn read(&self, _producer: Self::Producer) -> Payload {
             self.0
         }
     }
@@ -397,9 +412,9 @@ mod tests {
 
     #[derive(Default)]
     struct Plus {
-        input1: i32,
-        input2: i32,
-        output: i32,
+        input1: Payload,
+        input2: Payload,
+        output: Payload,
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
@@ -411,7 +426,7 @@ mod tests {
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct PlusOutput;
 
-    impl Node<i32> for Plus {
+    impl Node<Payload> for Plus {
         type Consumer = PlusInput;
         type Producer = PlusOutput;
 
@@ -419,11 +434,11 @@ mod tests {
             self.output = self.input1 + self.input2;
         }
 
-        fn read(&self, _producer: Self::Producer) -> i32 {
+        fn read(&self, _producer: Self::Producer) -> Payload {
             self.output
         }
 
-        fn write(&mut self, consumer: Self::Consumer, input: i32) {
+        fn write(&mut self, consumer: Self::Consumer, input: Payload) {
             match consumer {
                 Self::Consumer::In1 => self.input1 = input,
                 Self::Consumer::In2 => self.input2 = input,
@@ -450,7 +465,7 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct Recorder(i32);
+    struct Recorder(Payload);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct RecorderInput;
@@ -458,15 +473,15 @@ mod tests {
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     struct RecorderOutput;
 
-    impl Node<i32> for Recorder {
+    impl Node<Payload> for Recorder {
         type Consumer = RecorderInput;
         type Producer = RecorderOutput;
 
-        fn read(&self, _producer: Self::Producer) -> i32 {
+        fn read(&self, _producer: Self::Producer) -> Payload {
             self.0
         }
 
-        fn write(&mut self, _consumer: Self::Consumer, input: i32) {
+        fn write(&mut self, _consumer: Self::Consumer, input: Payload) {
             self.0 = input;
         }
     }
@@ -514,7 +529,8 @@ mod tests {
         }
     }
 
-    impl NodeWrapper<i32> for TestNode {
+    impl NodeWrapper for TestNode {
+        type Payload = Payload;
         type Consumer = TestConsumer;
         type Producer = TestProducer;
 
@@ -526,7 +542,7 @@ mod tests {
             }
         }
 
-        fn read<IntoP>(&self, producer: IntoP) -> i32
+        fn read<IntoP>(&self, producer: IntoP) -> Payload
         where
             IntoP: Into<Self::Producer>,
         {
@@ -547,7 +563,7 @@ mod tests {
             }
         }
 
-        fn write<IntoC>(&mut self, consumer: IntoC, input: i32)
+        fn write<IntoC>(&mut self, consumer: IntoC, input: Payload)
         where
             IntoC: Into<Self::Consumer>,
         {
@@ -566,7 +582,7 @@ mod tests {
         }
     }
 
-    impl ExternalNodeWrapper<i32> for TestNode {}
+    impl ExternalNodeWrapper<Payload> for TestNode {}
 
     // TODO: Can we move this and its implementation to a lib too?
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]

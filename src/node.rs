@@ -6,27 +6,28 @@ pub trait NodeClass {
     fn class(&self) -> Self::Class;
 }
 
-pub trait NodeWrapper<T: Default>: NodeClass {
+pub trait NodeWrapper: NodeClass {
+    type Payload: Copy + Default;
     type Consumer: Copy + Hash;
     type Producer: Copy + Hash;
 
     fn tick(&mut self) {}
 
-    fn read<P>(&self, producer: P) -> T
+    fn read<P>(&self, producer: P) -> Self::Payload
     where
         P: Into<Self::Producer>,
     {
-        T::default()
+        Self::Payload::default()
     }
 
-    fn write<C>(&mut self, consumer: C, _input: T)
+    fn write<C>(&mut self, consumer: C, _input: Self::Payload)
     where
         C: Into<Self::Consumer>,
     {
     }
 }
 
-pub trait ExternalNodeWrapper<T: Default>: NodeWrapper<T> {}
+pub trait ExternalNodeWrapper<T: Default + Copy>: NodeWrapper<Payload = T> {}
 
 pub trait Node<T: Default> {
     type Consumer: Copy + Hash;

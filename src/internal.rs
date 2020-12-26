@@ -34,10 +34,11 @@ impl<T> NodeClass for InternalNode<T> {
     }
 }
 
-impl<T> NodeWrapper<T> for InternalNode<T>
+impl<T> NodeWrapper for InternalNode<T>
 where
-    T: Default + Clone,
+    T: Default + Copy,
 {
+    type Payload = T;
     type Consumer = InternalConsumer;
     type Producer = InternalProducer;
 
