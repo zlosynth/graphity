@@ -13,16 +13,16 @@ pub trait NodeWrapper: NodeClass {
 
     fn tick(&mut self) {}
 
-    fn read<P>(&self, producer: P) -> Self::Payload
+    fn read<IntoP>(&self, producer: IntoP) -> Self::Payload
     where
-        P: Into<Self::Producer>,
+        IntoP: Into<Self::Producer>,
     {
         Self::Payload::default()
     }
 
-    fn write<C>(&mut self, consumer: C, _input: Self::Payload)
+    fn write<IntoC>(&mut self, consumer: IntoC, _input: Self::Payload)
     where
-        C: Into<Self::Consumer>,
+        IntoC: Into<Self::Consumer>,
     {
     }
 }
