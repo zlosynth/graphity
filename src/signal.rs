@@ -310,13 +310,7 @@ where
 struct SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
-    FeedbackSource<N::Payload>: Into<N>,
-    FeedbackSink<N::Payload>: Into<N>,
-    <N as NodeWrapper>::Producer: From<NI::Producer>,
-    <N as NodeWrapper>::Consumer: From<NI::Consumer>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
-    NI::Consumer: From<FeedbackSourceConsumer>,
-    NI::Producer: From<FeedbackSinkProducer>,
     CI: ConsumerIndexT<NodeIndex = NI>,
     PI: ProducerIndexT<NodeIndex = NI>,
 {
