@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 pub struct Cycle;
 
+// TODO: Do not copy data, work with iterator only
 pub fn topological_sort<N, NI, EI>(nodes: NI, edges: EI) -> Result<Vec<N>, Cycle>
 where
     N: Copy + Hash + Eq,

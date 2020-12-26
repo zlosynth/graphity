@@ -5,7 +5,7 @@ use std::hash::Hash;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::{ConsumerIndexT, Graph, NodeIndex, ProducerIndexT};
+use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalClass, InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeIndex,
     InternalProducer, InternalProducerIndex,
@@ -28,15 +28,15 @@ pub enum SignalNodeClass<NC> {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeConsumerIndex<CI>
 where
-    CI: ConsumerIndexT,
+    CI: ConsumerIndex,
 {
     RegisteredNode(CI),
     InternalNode(InternalConsumerIndex),
 }
 
-impl<CI> ConsumerIndexT for SignalNodeConsumerIndex<CI>
+impl<CI> ConsumerIndex for SignalNodeConsumerIndex<CI>
 where
-    CI: ConsumerIndexT,
+    CI: ConsumerIndex,
 {
     type NodeIndex = SignalNodeIndex<CI::NodeIndex>;
     type Consumer = SignalNodeConsumer<CI::Consumer>;
@@ -86,15 +86,15 @@ where
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeProducerIndex<CI>
 where
-    CI: ProducerIndexT,
+    CI: ProducerIndex,
 {
     RegisteredNode(CI),
     InternalNode(InternalProducerIndex),
 }
 
-impl<CI> ProducerIndexT for SignalNodeProducerIndex<CI>
+impl<CI> ProducerIndex for SignalNodeProducerIndex<CI>
 where
-    CI: ProducerIndexT,
+    CI: ProducerIndex,
 {
     type NodeIndex = SignalNodeIndex<CI::NodeIndex>;
     type Producer = SignalNodeProducer<CI::Producer>;
@@ -307,8 +307,8 @@ struct SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
-    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
-    PI: ProducerIndexT<NodeIndex = NI, Producer = NI::Producer>,
+    CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
+    PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
     graph: Graph<N, NI, CI, PI>,
     feedback_edges: HashMap<(PI, CI), (NI, NI)>,
@@ -325,8 +325,8 @@ where
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
-    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
-    PI: ProducerIndexT<NodeIndex = NI, Producer = NI::Producer>,
+    CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
+    PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
     pub fn new() -> Self {
         Self {
@@ -487,7 +487,7 @@ where
 mod tests {
     use super::*;
     use crate::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
-    use crate::graph::{ConsumerIndex, ProducerIndex};
+    use crate::graph::{CommonConsumerIndex, CommonProducerIndex};
     use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
     type Payload = i32;
@@ -723,14 +723,14 @@ mod tests {
         where
             IntoC: Into<TestConsumer>,
         {
-            ConsumerIndex::new(*self, consumer.into())
+            CommonConsumerIndex::new(*self, consumer.into())
         }
 
         fn producer<IntoP>(&self, producer: IntoP) -> TestProducerIndex
         where
             IntoP: Into<TestProducer>,
         {
-            ProducerIndex::new(*self, producer.into())
+            CommonProducerIndex::new(*self, producer.into())
         }
     }
 
@@ -743,7 +743,7 @@ mod tests {
 
     impl ExternalConsumer for TestConsumer {}
 
-    type TestConsumerIndex = ConsumerIndex<TestNodeIndex>;
+    type TestConsumerIndex = CommonConsumerIndex<TestNodeIndex>;
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     enum TestProducer {
@@ -754,7 +754,7 @@ mod tests {
 
     impl ExternalProducer for TestProducer {}
 
-    type TestProducerIndex = ProducerIndex<TestNodeIndex>;
+    type TestProducerIndex = CommonProducerIndex<TestNodeIndex>;
 
     type TestSignalGraph = SignalGraph<
         SignalNode<TestNode>,

@@ -6,10 +6,9 @@ use crate::node::NodeClass;
 pub trait NodeIndex: Copy + Hash + Eq {
     type Class: Copy + Hash + Eq;
     type Consumer: Copy + Hash + Eq;
-    // TODO: What about node index association?
-    type ConsumerIndex: ConsumerIndexT<NodeIndex = Self, Consumer = Self::Consumer>;
+    type ConsumerIndex: ConsumerIndex<NodeIndex = Self, Consumer = Self::Consumer>;
     type Producer: Copy + Hash + Eq;
-    type ProducerIndex: ProducerIndexT<NodeIndex = Self, Producer = Self::Producer>;
+    type ProducerIndex: ProducerIndex<NodeIndex = Self, Producer = Self::Producer>;
 
     fn new(class: Self::Class, index: usize) -> Self;
     fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
@@ -20,16 +19,7 @@ pub trait NodeIndex: Copy + Hash + Eq {
         IntoP: Into<Self::Producer>;
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ConsumerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    node_index: NI,
-    consumer: NI::Consumer,
-}
-
-pub trait ConsumerIndexT: Copy + Hash + Eq {
+pub trait ConsumerIndex: Copy + Hash + Eq {
     type NodeIndex: NodeIndex<Consumer = Self::Consumer>;
     type Consumer: Copy + Hash + Eq;
 
@@ -38,8 +28,17 @@ pub trait ConsumerIndexT: Copy + Hash + Eq {
     fn consumer(&self) -> Self::Consumer;
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct CommonConsumerIndex<NI>
+where
+    NI: NodeIndex,
+{
+    node_index: NI,
+    consumer: NI::Consumer,
+}
+
 // TODO Consider dropping the default implementation and have it explicit per each
-impl<NI> ConsumerIndexT for ConsumerIndex<NI>
+impl<NI> ConsumerIndex for CommonConsumerIndex<NI>
 where
     NI: NodeIndex,
 {
@@ -62,16 +61,7 @@ where
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ProducerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    node_index: NI,
-    producer: NI::Producer,
-}
-
-pub trait ProducerIndexT: Copy + Hash + Eq {
+pub trait ProducerIndex: Copy + Hash + Eq {
     type NodeIndex: NodeIndex<Producer = Self::Producer>;
     type Producer: Copy + Hash + Eq;
 
@@ -80,8 +70,17 @@ pub trait ProducerIndexT: Copy + Hash + Eq {
     fn producer(&self) -> Self::Producer;
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct CommonProducerIndex<NI>
+where
+    NI: NodeIndex,
+{
+    node_index: NI,
+    producer: NI::Producer,
+}
+
 // TODO Consider dropping the default implementation and have it explicit per each
-impl<NI> ProducerIndexT for ProducerIndex<NI>
+impl<NI> ProducerIndex for CommonProducerIndex<NI>
 where
     NI: NodeIndex,
 {
@@ -122,8 +121,8 @@ impl<N, NI, CI, PI> Graph<N, NI, CI, PI>
 where
     N: NodeClass,
     NI: NodeIndex<Class = N::Class>,
-    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
-    PI: ProducerIndexT<NodeIndex = NI, Producer = NI::Producer>,
+    CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
+    PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
     pub fn new() -> Self {
         Self {
@@ -215,12 +214,12 @@ mod tests {
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestConsumer;
 
-    type TestConsumerIndex = ConsumerIndex<TestNodeIndex>;
+    type TestConsumerIndex = CommonConsumerIndex<TestNodeIndex>;
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestProducer;
 
-    type TestProducerIndex = ProducerIndex<TestNodeIndex>;
+    type TestProducerIndex = CommonProducerIndex<TestNodeIndex>;
 
     impl NodeIndex for TestNodeIndex {
         type Class = TestClass;
@@ -237,14 +236,14 @@ mod tests {
         where
             IntoC: Into<Self::Consumer>,
         {
-            ConsumerIndex::new(*self, consumer.into())
+            CommonConsumerIndex::new(*self, consumer.into())
         }
 
         fn producer<IntoP>(&self, producer: IntoP) -> TestProducerIndex
         where
             IntoP: Into<TestProducer>,
         {
-            ProducerIndex::new(*self, producer.into())
+            CommonProducerIndex::new(*self, producer.into())
         }
     }
 
