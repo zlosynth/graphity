@@ -7,9 +7,9 @@ pub trait NodeIndex: Copy + Hash + Eq {
     type Class: Copy + Hash + Eq;
     type Consumer: Copy + Hash + Eq;
     // TODO: What about node index association?
-    type ConsumerIndex: ConsumerIndexT<NodeIndex = Self>;
-    type ProducerIndex: ProducerIndexT<NodeIndex = Self>;
+    type ConsumerIndex: ConsumerIndexT<NodeIndex = Self, Consumer = Self::Consumer>;
     type Producer: Copy + Hash + Eq;
+    type ProducerIndex: ProducerIndexT<NodeIndex = Self>;
 
     fn new(class: Self::Class, index: usize) -> Self;
     fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
@@ -30,14 +30,12 @@ where
 }
 
 pub trait ConsumerIndexT: Copy + Hash + Eq {
-    type NodeIndex: NodeIndex;
+    type NodeIndex: NodeIndex<Consumer = Self::Consumer>;
+    type Consumer: Copy + Hash + Eq;
 
-    fn new(
-        node_index: Self::NodeIndex,
-        consumer: <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer,
-    ) -> Self;
+    fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self;
     fn node_index(&self) -> Self::NodeIndex;
-    fn consumer(&self) -> <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer;
+    fn consumer(&self) -> Self::Consumer;
 }
 
 // TODO Consider dropping the default implementation and have it explicit per each
@@ -46,8 +44,9 @@ where
     NI: NodeIndex,
 {
     type NodeIndex = NI;
+    type Consumer = NI::Consumer;
 
-    fn new(node_index: Self::NodeIndex, consumer: NI::Consumer) -> Self {
+    fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self {
         Self {
             node_index,
             consumer,
@@ -58,7 +57,7 @@ where
         self.node_index
     }
 
-    fn consumer(&self) -> NI::Consumer {
+    fn consumer(&self) -> Self::Consumer {
         self.consumer
     }
 }
@@ -75,12 +74,10 @@ where
 pub trait ProducerIndexT: Copy + Hash + Eq {
     type NodeIndex: NodeIndex;
 
-    fn new(
-        node_index: Self::NodeIndex,
-        producer: <<Self as ProducerIndexT>::NodeIndex as NodeIndex>::Producer,
-    ) -> Self;
+    fn new(node_index: Self::NodeIndex, producer: <Self::NodeIndex as NodeIndex>::Producer)
+        -> Self;
     fn node_index(&self) -> Self::NodeIndex;
-    fn producer(&self) -> <<Self as ProducerIndexT>::NodeIndex as NodeIndex>::Producer;
+    fn producer(&self) -> <Self::NodeIndex as NodeIndex>::Producer;
 }
 
 // TODO Consider dropping the default implementation and have it explicit per each
@@ -114,7 +111,7 @@ pub struct Graph<N, NI, CI, PI>
 where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
-    CI: ConsumerIndexT,
+    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndexT,
 {
     index_counter: usize,
@@ -126,7 +123,7 @@ impl<N, NI, CI, PI> Graph<N, NI, CI, PI>
 where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
-    CI: ConsumerIndexT<NodeIndex = NI>,
+    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndexT<NodeIndex = NI>,
 {
     pub fn new() -> Self {

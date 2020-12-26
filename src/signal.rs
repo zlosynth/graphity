@@ -39,11 +39,9 @@ where
     CI: ConsumerIndexT,
 {
     type NodeIndex = SignalNodeIndex<CI::NodeIndex>;
+    type Consumer = SignalNodeConsumer<CI::Consumer>;
 
-    fn new(
-        node_index: Self::NodeIndex,
-        consumer: <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer,
-    ) -> Self {
+    fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self {
         match node_index {
             Self::NodeIndex::RegisteredNode(node_index) => match consumer {
                 SignalNodeConsumer::RegisteredNode(consumer) => {
@@ -73,7 +71,7 @@ where
         }
     }
 
-    fn consumer(&self) -> <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer {
+    fn consumer(&self) -> Self::Consumer {
         match self {
             Self::RegisteredNode(consumer_index) => {
                 SignalNodeConsumer::RegisteredNode(consumer_index.consumer())
@@ -311,7 +309,7 @@ struct SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
-    CI: ConsumerIndexT<NodeIndex = NI>,
+    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndexT<NodeIndex = NI>,
 {
     graph: Graph<N, NI, CI, PI>,
@@ -329,7 +327,7 @@ where
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
-    CI: ConsumerIndexT<NodeIndex = NI>,
+    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndexT<NodeIndex = NI>,
 {
     pub fn new() -> Self {
