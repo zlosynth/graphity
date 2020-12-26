@@ -10,7 +10,7 @@ use crate::graph::{
 };
 use crate::internal::{
     InternalClass, InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeIndex,
-    InternalProducer,
+    InternalProducer, InternalProducerIndex,
 };
 use crate::node::{NodeClass, NodeWrapper};
 use crate::sort;
@@ -26,8 +26,6 @@ pub enum SignalNodeClass<NC> {
     RegisteredNode(NC),
     InternalNode(InternalClass),
 }
-
-// pub type SignalNodeConsumerIndex<NI> = ConsumerIndex<SignalNodeIndex<NI>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeConsumerIndex<CI>
@@ -89,7 +87,65 @@ where
     }
 }
 
-pub type SignalNodeProducerIndex<NI> = ProducerIndex<SignalNodeIndex<NI>>;
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SignalNodeProducerIndex<CI>
+where
+    CI: ProducerIndexT,
+{
+    RegisteredNode(CI),
+    InternalNode(InternalProducerIndex),
+}
+
+impl<CI> ProducerIndexT for SignalNodeProducerIndex<CI>
+where
+    CI: ProducerIndexT,
+{
+    type NodeIndex = SignalNodeIndex<CI::NodeIndex>;
+
+    fn new(
+        node_index: Self::NodeIndex,
+        producer: <<Self as ProducerIndexT>::NodeIndex as NodeIndex>::Producer,
+    ) -> Self {
+        match node_index {
+            Self::NodeIndex::RegisteredNode(node_index) => match producer {
+                SignalNodeProducer::RegisteredNode(producer) => {
+                    SignalNodeProducerIndex::RegisteredNode(CI::new(node_index, producer))
+                }
+                _ => panic!("BAD mismatch"),
+            },
+            Self::NodeIndex::InternalNode(node_index) => match producer {
+                SignalNodeProducer::InternalNode(producer) => {
+                    SignalNodeProducerIndex::InternalNode(InternalProducerIndex::new(
+                        node_index, producer,
+                    ))
+                }
+                _ => panic!("BAD mismatch"),
+            },
+        }
+    }
+
+    fn node_index(&self) -> Self::NodeIndex {
+        match self {
+            Self::RegisteredNode(producer_index) => {
+                SignalNodeIndex::RegisteredNode(producer_index.node_index())
+            }
+            Self::InternalNode(producer_index) => {
+                SignalNodeIndex::InternalNode(producer_index.node_index())
+            }
+        }
+    }
+
+    fn producer(&self) -> <<Self as ProducerIndexT>::NodeIndex as NodeIndex>::Producer {
+        match self {
+            Self::RegisteredNode(producer_index) => {
+                SignalNodeProducer::RegisteredNode(producer_index.producer())
+            }
+            Self::InternalNode(producer_index) => {
+                SignalNodeProducer::InternalNode(producer_index.producer())
+            }
+        }
+    }
+}
 
 impl<NI> NodeIndex for SignalNodeIndex<NI>
 where
@@ -99,7 +155,7 @@ where
     type Consumer = SignalNodeConsumer<NI::Consumer>;
     type ConsumerIndex = SignalNodeConsumerIndex<NI::ConsumerIndex>;
     type Producer = SignalNodeProducer<NI::Producer>;
-    type ProducerIndex = SignalNodeProducerIndex<NI>;
+    type ProducerIndex = SignalNodeProducerIndex<NI::ProducerIndex>;
 
     fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
         match class {
@@ -110,8 +166,6 @@ where
         }
     }
 
-    // TODO: Validate against class, test it first
-    // TODO: Will it run the validation recursively? Have to call the underlying implementation
     fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeConsumerIndex<NI::ConsumerIndex>
     where
         IntoC: Into<Self::Consumer>,
@@ -119,12 +173,11 @@ where
         SignalNodeConsumerIndex::new(*self, consumer.into())
     }
 
-    // TODO: Validate against class, test it first
-    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeProducerIndex<NI>
+    fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeProducerIndex<NI::ProducerIndex>
     where
         IntoP: Into<Self::Producer>,
     {
-        ProducerIndex::new(*self, producer.into())
+        SignalNodeProducerIndex::new(*self, producer.into())
     }
 }
 
@@ -256,37 +309,36 @@ where
     }
 }
 
-struct SignalGraph<N, NI, CI>
+struct SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
     FeedbackSource<N::Payload>: Into<N>,
     FeedbackSink<N::Payload>: Into<N>,
     <N as NodeWrapper>::Producer: From<NI::Producer>,
     <N as NodeWrapper>::Consumer: From<NI::Consumer>,
-    //NI: NodeIndex<ConsumerIndex = ConsumerIndex<NI>, ProducerIndex = ProducerIndex<NI>>,
-    NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = ProducerIndex<NI>>,
+    NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
     CI: ConsumerIndexT<NodeIndex = NI>,
+    PI: ProducerIndexT<NodeIndex = NI>,
 {
-    graph: Graph<N, NI, CI, ProducerIndex<NI>>,
-    feedback_edges: HashMap<(ProducerIndex<NI>, CI), (NI, NI)>,
+    graph: Graph<N, NI, CI, PI>,
+    feedback_edges: HashMap<(PI, CI), (NI, NI)>,
     sorted_nodes: Vec<NI>,
 }
 
-impl<N, NI, CI> SignalGraph<N, NI, CI>
+impl<N, NI, CI, PI> SignalGraph<N, NI, CI, PI>
 where
-    // TODO: Try to make it so feedback can be based on anything
     N: NodeWrapper<Class = NI::Class>,
     FeedbackSource<N::Payload>: Into<N>,
     FeedbackSink<N::Payload>: Into<N>,
     <N as NodeWrapper>::Producer: From<NI::Producer>,
     <N as NodeWrapper>::Consumer: From<NI::Consumer>,
-    //NI: NodeIndex<ConsumerIndex = ConsumerIndex<NI>, ProducerIndex = ProducerIndex<NI>>,
-    NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = ProducerIndex<NI>>,
+    NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
     CI: ConsumerIndexT<NodeIndex = NI>,
+    PI: ProducerIndexT<NodeIndex = NI>,
 {
     pub fn new() -> Self {
         Self {
@@ -318,7 +370,7 @@ where
         self.graph.node_mut(node_index)
     }
 
-    pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) {
+    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
         if self.has_edge(producer, consumer) {
             return;
         }
@@ -349,7 +401,7 @@ where
         self.update_cache();
     }
 
-    pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) {
+    pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
         if self.graph.has_edge(producer, consumer) {
             self.graph.remove_edge(producer, consumer);
         } else if self.feedback_edges.contains_key(&(producer, consumer)) {
@@ -397,7 +449,7 @@ where
         self.update_cache();
     }
 
-    pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) -> bool {
+    pub fn has_edge(&mut self, producer: PI, consumer: CI) -> bool {
         // TODO: Consider feedbacks too
         self.graph.has_edge(producer, consumer)
     }
@@ -719,6 +771,7 @@ mod tests {
         SignalNode<TestNode>,
         SignalNodeIndex<TestNodeIndex>,
         SignalNodeConsumerIndex<TestConsumerIndex>,
+        SignalNodeProducerIndex<TestProducerIndex>,
     >;
 
     #[test]
