@@ -5,9 +5,7 @@ use std::hash::Hash;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::{
-    ConsumerIndex, ConsumerIndexT, Graph, NodeIndex, ProducerIndex, ProducerIndexT,
-};
+use crate::graph::{ConsumerIndexT, Graph, NodeIndex, ProducerIndexT};
 use crate::internal::{
     InternalClass, InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeIndex,
     InternalProducer, InternalProducerIndex,
@@ -499,6 +497,7 @@ where
 mod tests {
     use super::*;
     use crate::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
+    use crate::graph::{ConsumerIndex, ProducerIndex};
     use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
 
     type Payload = i32;
