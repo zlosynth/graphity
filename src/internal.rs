@@ -1,5 +1,5 @@
 use crate::feedback::{FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer};
-use crate::graph::{ConsumerIndex, ConsumerIndexT, NodeIndex, ProducerIndex};
+use crate::graph::{ConsumerIndex, ConsumerIndexT, NodeIndex, ProducerIndex, ProducerIndexT};
 use crate::node::{Node, NodeClass, NodeWrapper};
 
 pub enum InternalNode<T> {
@@ -83,6 +83,7 @@ impl NodeIndex for InternalNodeIndex {
     type Consumer = InternalConsumer;
     type ConsumerIndex = InternalConsumerIndex;
     type Producer = InternalProducer;
+    type ProducerIndex = InternalProducerIndex;
 
     fn new(class: Self::Class, index: usize) -> Self {
         Self { class, index }

@@ -5,7 +5,9 @@ use std::hash::Hash;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::{ConsumerIndex, ConsumerIndexT, Graph, NodeIndex, ProducerIndex};
+use crate::graph::{
+    ConsumerIndex, ConsumerIndexT, Graph, NodeIndex, ProducerIndex, ProducerIndexT,
+};
 use crate::internal::{
     InternalClass, InternalConsumer, InternalNode, InternalNodeIndex, InternalProducer,
 };
@@ -35,6 +37,7 @@ where
     type Consumer = SignalNodeConsumer<NI::Consumer>;
     type ConsumerIndex = SignalNodeConsumerIndex<NI>;
     type Producer = SignalNodeProducer<NI::Producer>;
+    type ProducerIndex = SignalNodeProducerIndex<NI>;
 
     fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
         match class {
@@ -196,7 +199,7 @@ where
     N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex,
 {
-    graph: Graph<N, NI, ConsumerIndex<NI>>,
+    graph: Graph<N, NI, ConsumerIndex<NI>, ProducerIndex<NI>>,
     feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
     sorted_nodes: Vec<NI>,
 }
@@ -209,7 +212,7 @@ where
     FeedbackSink<N::Payload>: Into<N>,
     <N as NodeWrapper>::Producer: From<NI::Producer>,
     <N as NodeWrapper>::Consumer: From<NI::Consumer>,
-    NI: NodeIndex<ConsumerIndex = ConsumerIndex<NI>>,
+    NI: NodeIndex<ConsumerIndex = ConsumerIndex<NI>, ProducerIndex = ProducerIndex<NI>>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
 {
@@ -256,7 +259,7 @@ where
             .graph
             .edges
             .iter()
-            .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
+            .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
             .collect();
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
             self.graph.remove_edge(producer, consumer);
@@ -298,7 +301,7 @@ where
                     .graph
                     .edges
                     .iter()
-                    .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
+                    .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
                     .collect();
 
                 let has_cycle = match sort::topological_sort(nodes, edges) {
@@ -333,7 +336,7 @@ where
             .graph
             .edges
             .iter()
-            .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
+            .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
             .collect();
 
         let sorted_nodes = match sort::topological_sort(nodes, edges) {
@@ -351,12 +354,12 @@ where
             self.graph.nodes.get_mut(node_index).unwrap().tick();
 
             for (source_index, destination_index) in self.graph.edges.iter() {
-                if source_index.node_index != *node_index {
+                if source_index.node_index() != *node_index {
                     continue;
                 }
 
-                let source = self.graph.node(&source_index.node_index);
-                let output = source.read(source_index.producer);
+                let source = self.graph.node(&source_index.node_index());
+                let output = source.read(source_index.producer());
                 let destination = self
                     .graph
                     .nodes
@@ -597,6 +600,7 @@ mod tests {
         type Consumer = TestConsumer;
         type ConsumerIndex = TestConsumerIndex;
         type Producer = TestProducer;
+        type ProducerIndex = TestProducerIndex;
 
         fn new(_class: TestNodeClass, index: usize) -> Self {
             Self { index }
