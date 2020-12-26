@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 pub trait NodeClass {
-    type Class;
+    type Class: Hash + Copy + Eq;
 
     fn class(&self) -> Self::Class;
 }

@@ -107,13 +107,11 @@ where
 // Directed graph Each node is further divided into producers and consumers with
 // MAX 1 indegree for each consumer and arbitrary number of outdegrees for
 // producer all consumers of a node are connected to all producers of the node
-// TODO: Use converusmer index as trait
 pub struct Graph<N, NI, CI, PI>
 where
-    N: NodeClass<Class = NI::Class>,
-    NI: NodeIndex,
-    CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
-    PI: ProducerIndexT,
+    NI: Hash,
+    CI: Hash,
+    PI: Hash,
 {
     index_counter: usize,
     pub nodes: HashMap<NI, N>,
@@ -122,8 +120,8 @@ where
 
 impl<N, NI, CI, PI> Graph<N, NI, CI, PI>
 where
-    N: NodeClass<Class = NI::Class>,
-    NI: NodeIndex,
+    N: NodeClass,
+    NI: NodeIndex<Class = N::Class>,
     CI: ConsumerIndexT<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndexT<NodeIndex = NI, Producer = NI::Producer>,
 {
