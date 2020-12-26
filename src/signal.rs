@@ -5,7 +5,7 @@ use std::hash::Hash;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
+use crate::graph::{ConsumerIndex, ConsumerIndexT, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
     InternalClass, InternalConsumer, InternalNode, InternalNodeIndex, InternalProducer,
 };
@@ -33,6 +33,7 @@ where
 {
     type Class = SignalNodeClass<NI::Class>;
     type Consumer = SignalNodeConsumer<NI::Consumer>;
+    type ConsumerIndex = SignalNodeConsumerIndex<NI>;
     type Producer = SignalNodeProducer<NI::Producer>;
 
     fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
@@ -195,7 +196,7 @@ where
     N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex,
 {
-    graph: Graph<N, NI>,
+    graph: Graph<N, NI, ConsumerIndex<NI>>,
     feedback_edges: HashMap<(ProducerIndex<NI>, ConsumerIndex<NI>), (NI, NI)>,
     sorted_nodes: Vec<NI>,
 }
@@ -208,7 +209,7 @@ where
     FeedbackSink<N::Payload>: Into<N>,
     <N as NodeWrapper>::Producer: From<NI::Producer>,
     <N as NodeWrapper>::Consumer: From<NI::Consumer>,
-    NI: NodeIndex,
+    NI: NodeIndex<ConsumerIndex = ConsumerIndex<NI>>,
     NI::Consumer: From<FeedbackSourceConsumer>,
     NI::Producer: From<FeedbackSinkProducer>,
 {
@@ -594,6 +595,7 @@ mod tests {
     impl NodeIndex for TestNodeIndex {
         type Class = TestNodeClass;
         type Consumer = TestConsumer;
+        type ConsumerIndex = TestConsumerIndex;
         type Producer = TestProducer;
 
         fn new(_class: TestNodeClass, index: usize) -> Self {

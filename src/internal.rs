@@ -1,5 +1,5 @@
 use crate::feedback::{FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer};
-use crate::graph::{ConsumerIndex, NodeIndex, ProducerIndex};
+use crate::graph::{ConsumerIndex, ConsumerIndexT, NodeIndex, ProducerIndex};
 use crate::node::{Node, NodeClass, NodeWrapper};
 
 pub enum InternalNode<T> {
@@ -81,6 +81,7 @@ pub type InternalProducerIndex = ProducerIndex<InternalNodeIndex>;
 impl NodeIndex for InternalNodeIndex {
     type Class = InternalClass;
     type Consumer = InternalConsumer;
+    type ConsumerIndex = InternalConsumerIndex;
     type Producer = InternalProducer;
 
     fn new(class: Self::Class, index: usize) -> Self {
@@ -94,6 +95,7 @@ impl NodeIndex for InternalNodeIndex {
         let consumer = consumer.into();
         match self.class {
             Self::Class::FeedbackSource => match consumer {
+                // TODO: Use enum for the consumer index
                 Self::Consumer::FeedbackSource(_) => InternalConsumerIndex::new(*self, consumer),
             },
             Self::Class::FeedbackSink => panic!("Feedback sink does not offer any consumers"),

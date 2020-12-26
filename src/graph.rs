@@ -6,10 +6,12 @@ use crate::node::NodeClass;
 pub trait NodeIndex: Copy + Hash + Eq {
     type Class: Copy + Hash + Eq;
     type Consumer: Copy + Hash + Eq;
+    // TODO: What about node index association?
+    type ConsumerIndex: ConsumerIndexT<NodeIndex = Self>;
     type Producer: Copy + Hash + Eq;
 
     fn new(class: Self::Class, index: usize) -> Self;
-    fn consumer<IntoC>(&self, consumer: IntoC) -> ConsumerIndex<Self>
+    fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
     where
         IntoC: Into<Self::Consumer>;
     fn producer<IntoP>(&self, producer: IntoP) -> ProducerIndex<Self>
@@ -26,27 +28,40 @@ where
     consumer: NI::Consumer,
 }
 
+pub trait ConsumerIndexT: Copy + Hash + Eq {
+    type NodeIndex: NodeIndex;
+
+    fn new(
+        node_index: Self::NodeIndex,
+        consumer: <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer,
+    ) -> Self;
+    fn node_index(&self) -> Self::NodeIndex;
+    fn consumer(&self) -> <<Self as ConsumerIndexT>::NodeIndex as NodeIndex>::Consumer;
+}
+
 // TODO: Turn this into a Trait
-// 1. implemented here on the struct directly
+// 1. DONE implemented here on the struct directly
 // 2. Turn other traits to require the trait, not the struct
 // 3. Use the trait for Signal
 // 4. Consider dropping the default implementation and have it explicit per each
-impl<NI> ConsumerIndex<NI>
+impl<NI> ConsumerIndexT for ConsumerIndex<NI>
 where
     NI: NodeIndex,
 {
-    pub fn new(node_index: NI, consumer: NI::Consumer) -> Self {
+    type NodeIndex = NI;
+
+    fn new(node_index: Self::NodeIndex, consumer: NI::Consumer) -> Self {
         Self {
             node_index,
             consumer,
         }
     }
 
-    pub fn node_index(&self) -> NI {
+    fn node_index(&self) -> Self::NodeIndex {
         self.node_index
     }
 
-    pub fn consumer(&self) -> NI::Consumer {
+    fn consumer(&self) -> NI::Consumer {
         self.consumer
     }
 }
@@ -75,20 +90,23 @@ where
 // Directed graph Each node is further divided into producers and consumers with
 // MAX 1 indegree for each consumer and arbitrary number of outdegrees for
 // producer all consumers of a node are connected to all producers of the node
-pub struct Graph<N, NI>
+// TODO: Use converusmer index as trait
+pub struct Graph<N, NI, CI>
 where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
+    CI: ConsumerIndexT,
 {
     index_counter: usize,
     pub nodes: HashMap<NI, N>,
-    pub edges: HashSet<(ProducerIndex<NI>, ConsumerIndex<NI>)>,
+    pub edges: HashSet<(ProducerIndex<NI>, CI)>,
 }
 
-impl<N, NI> Graph<N, NI>
+impl<N, NI, CI> Graph<N, NI, CI>
 where
     N: NodeClass<Class = NI::Class>,
     NI: NodeIndex,
+    CI: ConsumerIndexT<NodeIndex = NI>,
 {
     pub fn new() -> Self {
         Self {
@@ -112,7 +130,7 @@ where
     pub fn remove_node(&mut self, node_index: NI) {
         self.nodes.remove(&node_index);
         self.edges.retain(|(producer, consumer)| {
-            producer.node_index != node_index && consumer.node_index != node_index
+            producer.node_index != node_index && consumer.node_index() != node_index
         });
     }
 
@@ -128,7 +146,7 @@ where
             .expect("The node for the given index was not found")
     }
 
-    pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
+    pub fn add_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) {
         self.edges
             .iter()
             .for_each(|(existing_producer, existing_consumer)| {
@@ -139,11 +157,11 @@ where
         self.edges.insert((producer, consumer));
     }
 
-    pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) {
+    pub fn remove_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) {
         self.edges.remove(&(producer, consumer));
     }
 
-    pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: ConsumerIndex<NI>) -> bool {
+    pub fn has_edge(&mut self, producer: ProducerIndex<NI>, consumer: CI) -> bool {
         self.edges.contains(&(producer, consumer))
     }
 }
@@ -190,15 +208,16 @@ mod tests {
     impl NodeIndex for TestNodeIndex {
         type Class = TestClass;
         type Consumer = TestConsumer;
+        type ConsumerIndex = TestConsumerIndex;
         type Producer = TestProducer;
 
         fn new(_class: TestClass, index: usize) -> Self {
             Self { index }
         }
 
-        fn consumer<IntoC>(&self, consumer: IntoC) -> TestConsumerIndex
+        fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
         where
-            IntoC: Into<TestConsumer>,
+            IntoC: Into<Self::Consumer>,
         {
             ConsumerIndex::new(*self, consumer.into())
         }
@@ -211,7 +230,7 @@ mod tests {
         }
     }
 
-    type TestGraph = Graph<TestNode, TestNodeIndex>;
+    type TestGraph = Graph<TestNode, TestNodeIndex, TestConsumerIndex>;
 
     #[test]
     fn initialize_node_index() {
