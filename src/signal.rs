@@ -246,7 +246,7 @@ where
             .graph
             .edges
             .iter()
-            .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+            .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
             .collect();
         if let Err(Cycle) = sort::topological_sort(nodes, edges) {
             self.graph.remove_edge(producer, consumer);
@@ -286,7 +286,7 @@ where
                     .graph
                     .edges
                     .iter()
-                    .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+                    .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
                     .collect();
 
                 let has_cycle = match sort::topological_sort(nodes, edges) {
@@ -323,7 +323,7 @@ where
             .graph
             .edges
             .iter()
-            .map(|(producer, consumer)| (producer.node_index, consumer.node_index))
+            .map(|(producer, consumer)| (producer.node_index, consumer.node_index()))
             .collect();
 
         let sorted_nodes = match sort::topological_sort(nodes, edges) {
@@ -346,9 +346,9 @@ where
                 let destination = self
                     .graph
                     .nodes
-                    .get_mut(&destination_index.node_index)
+                    .get_mut(&destination_index.node_index())
                     .unwrap();
-                destination.write(destination_index.consumer, output);
+                destination.write(destination_index.consumer(), output);
             }
         }
     }
@@ -552,7 +552,6 @@ mod tests {
             IntoC: Into<Self::Consumer>,
         {
             let consumer = consumer.into();
-            dbg!(consumer);
             match self {
                 Self::Number(_) => panic!("Bad bad, not good"),
                 Self::Plus(plus) => match consumer {

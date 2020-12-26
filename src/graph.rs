@@ -22,10 +22,15 @@ pub struct ConsumerIndex<NI>
 where
     NI: NodeIndex,
 {
-    pub node_index: NI,
-    pub consumer: NI::Consumer,
+    node_index: NI,
+    consumer: NI::Consumer,
 }
 
+// TODO: Turn this into a Trait
+// 1. implemented here on the struct directly
+// 2. Turn other traits to require the trait, not the struct
+// 3. Use the trait for Signal
+// 4. Consider dropping the default implementation and have it explicit per each
 impl<NI> ConsumerIndex<NI>
 where
     NI: NodeIndex,
@@ -35,6 +40,14 @@ where
             node_index,
             consumer,
         }
+    }
+
+    pub fn node_index(&self) -> NI {
+        self.node_index
+    }
+
+    pub fn consumer(&self) -> NI::Consumer {
+        self.consumer
     }
 }
 
