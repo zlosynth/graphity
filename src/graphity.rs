@@ -1,188 +1,188 @@
-// #[macro_export]
-// macro_rules! graphity {
-//     ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
-//         // TODO: Use all without imports
-//         use graphity::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
-//         use graphity::graph::{CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex};
-//         use graphity::node::{
-//             ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper, NodeClass,
-//         };
-//         use graphity::signal::{SignalNode, SignalNodeConsumer, SignalNodeProducer, SignalGraph, SignalNodeConsumerIndex, SignalNodeProducerIndex, SignalNodeIndex};
+#[macro_export]
+macro_rules! graphity {
+    ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
+        // TODO: Use all without imports
+        use graphity::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
+        use graphity::graph::{CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex};
+        use graphity::node::{
+            ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper, NodeClass,
+        };
+        use graphity::signal::{SignalNode, SignalNodeConsumer, SignalNodeProducer, SignalGraph, SignalNodeConsumerIndex, SignalNodeProducerIndex, SignalNodeIndex};
 
-//         $(
-//         impl From<$node> for GeneratedNode {
-//             fn from(node: $node) -> Self {
-//                 GeneratedNode::$node(node)
-//             }
-//         }
+        $(
+        impl From<$node> for GeneratedNode {
+            fn from(node: $node) -> Self {
+                GeneratedNode::$node(node)
+            }
+        }
 
-//         impl From<<$node as Node<$payload>>::Consumer> for GeneratedConsumer {
-//             fn from(consumer: <$node as Node<$payload>>::Consumer) -> Self {
-//                 GeneratedConsumer::$node(consumer)
-//             }
-//         }
+        impl From<<$node as Node<$payload>>::Consumer> for GeneratedConsumer {
+            fn from(consumer: <$node as Node<$payload>>::Consumer) -> Self {
+                GeneratedConsumer::$node(consumer)
+            }
+        }
 
-//         impl From<<$node as Node<$payload>>::Producer> for GeneratedProducer {
-//             fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
-//                 GeneratedProducer::$node(producer)
-//             }
-//         }
-//         )*
+        impl From<<$node as Node<$payload>>::Producer> for GeneratedProducer {
+            fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
+                GeneratedProducer::$node(producer)
+            }
+        }
+        )*
 
-//         pub enum GeneratedNode {
-//             $(
-//             $node($node),
-//             )*
-//         }
+        pub enum GeneratedNode {
+            $(
+            $node($node),
+            )*
+        }
 
-//         #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-//         pub enum GeneratedClass {
-//             $(
-//             $node,
-//             )*
-//         }
+        #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
+        pub enum GeneratedClass {
+            $(
+            $node,
+            )*
+        }
 
-//         impl NodeClass for GeneratedNode {
-//             type Class = GeneratedClass;
+        impl NodeClass for GeneratedNode {
+            type Class = GeneratedClass;
 
-//             fn class(&self) -> Self::Class {
-//                 match self {
-//                     $(
-//                     Self::$node(_) => GeneratedClass::$node,
-//                     )*
-//                 }
-//             }
-//         }
+            fn class(&self) -> Self::Class {
+                match self {
+                    $(
+                    Self::$node(_) => GeneratedClass::$node,
+                    )*
+                }
+            }
+        }
 
-//         impl NodeWrapper for GeneratedNode {
-//             type Payload = $payload;
-//             type Consumer = GeneratedConsumer;
-//             type Producer = GeneratedProducer;
+        impl NodeWrapper for GeneratedNode {
+            type Payload = $payload;
+            type Consumer = GeneratedConsumer;
+            type Producer = GeneratedProducer;
 
-//             fn tick(&mut self) {
-//                 match self {
-//                     $(
-//                     Self::$node(node) => node.tick(),
-//                     )*
-//                 }
-//             }
+            fn tick(&mut self) {
+                match self {
+                    $(
+                    Self::$node(node) => node.tick(),
+                    )*
+                }
+            }
 
-//             fn read<IntoP>(&self, producer: IntoP) -> $payload
-//             where
-//                 IntoP: Into<Self::Producer>,
-//             {
-//                 let producer = producer.into();
-//                 match self {
-//                     $(
-//                     Self::$node(node) => match producer {
-//                         Self::Producer::$node(producer) => node.read(producer),
-//                         #[allow(unreachable_patterns)]
-//                         _ => unreachable!("Node does not offer such producer"),
-//                     },
-//                     )*
-//                 }
-//             }
+            fn read<IntoP>(&self, producer: IntoP) -> $payload
+            where
+                IntoP: Into<Self::Producer>,
+            {
+                let producer = producer.into();
+                match self {
+                    $(
+                    Self::$node(node) => match producer {
+                        Self::Producer::$node(producer) => node.read(producer),
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("Node does not offer such producer"),
+                    },
+                    )*
+                }
+            }
 
-//             fn write<IntoC>(&mut self, consumer: IntoC, input: $payload)
-//             where
-//                 IntoC: Into<Self::Consumer>,
-//             {
-//                 let consumer = consumer.into();
-//                 match self {
-//                     $(
-//                     Self::$node(node) => match consumer {
-//                         Self::Consumer::$node(consumer) => node.write(consumer, input),
-//                         #[allow(unreachable_patterns)]
-//                         _ => unreachable!("Node does not offer such consumer"),
-//                     },
-//                     )*
-//                 }
-//             }
-//         }
+            fn write<IntoC>(&mut self, consumer: IntoC, input: $payload)
+            where
+                IntoC: Into<Self::Consumer>,
+            {
+                let consumer = consumer.into();
+                match self {
+                    $(
+                    Self::$node(node) => match consumer {
+                        Self::Consumer::$node(consumer) => node.write(consumer, input),
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("Node does not offer such consumer"),
+                    },
+                    )*
+                }
+            }
+        }
 
-//         impl ExternalNodeWrapper<$payload> for GeneratedNode {}
+        impl ExternalNodeWrapper<$payload> for GeneratedNode {}
 
-//         #[derive(PartialEq, Eq, Copy, Clone, Hash)]
-//         pub struct GeneratedNodeIndex {
-//             class: GeneratedClass,
-//             index: usize,
-//         }
+        #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+        pub struct GeneratedNodeIndex {
+            class: GeneratedClass,
+            index: usize,
+        }
 
-//         impl NodeIndex for GeneratedNodeIndex {
-//             type Class = GeneratedClass;
-//             type Consumer = GeneratedConsumer;
-//             type ConsumerIndex = GeneratedConsumerIndex;
-//             type Producer = GeneratedProducer;
-//             type ProducerIndex = GeneratedProducerIndex;
+        impl NodeIndex for GeneratedNodeIndex {
+            type Class = GeneratedClass;
+            type Consumer = GeneratedConsumer;
+            type ConsumerIndex = GeneratedConsumerIndex;
+            type Producer = GeneratedProducer;
+            type ProducerIndex = GeneratedProducerIndex;
 
-//             fn new(class: GeneratedClass, index: usize) -> Self {
-//                 Self { class, index }
-//             }
+            fn new(class: GeneratedClass, index: usize) -> Self {
+                Self { class, index }
+            }
 
-//             // TODO : Check class
-//             fn consumer<IntoC>(&self, consumer: IntoC) -> GeneratedConsumerIndex
-//             where
-//                 IntoC: Into<GeneratedConsumer>,
-//             {
-//                 let consumer = consumer.into();
-//                 match self.class {
-//                     $(
-//                     Self::Class::$node => match consumer {
-//                         Self::Consumer::$node(_) => CommonConsumerIndex::new(*self, consumer),
-//                         #[allow(unreachable_patterns)]
-//                         _ => panic!("Node does not offer such consumer")
-//                     },
-//                     )*
-//                 }
-//             }
+            // TODO : Check class
+            fn consumer<IntoC>(&self, consumer: IntoC) -> GeneratedConsumerIndex
+            where
+                IntoC: Into<GeneratedConsumer>,
+            {
+                let consumer = consumer.into();
+                match self.class {
+                    $(
+                    Self::Class::$node => match consumer {
+                        Self::Consumer::$node(_) => CommonConsumerIndex::new(*self, consumer),
+                        #[allow(unreachable_patterns)]
+                        _ => panic!("Node does not offer such consumer")
+                    },
+                    )*
+                }
+            }
 
-//             fn producer<IntoP>(&self, producer: IntoP) -> GeneratedProducerIndex
-//             where
-//                 IntoP: Into<GeneratedProducer>,
-//             {
-//                 let producer = producer.into();
-//                 match self.class {
-//                     $(
-//                     Self::Class::$node => match producer {
-//                         Self::Producer::$node(_) => CommonProducerIndex::new(*self, producer),
-//                         #[allow(unreachable_patterns)]
-//                         _ => panic!("Node does not offer such producer")
-//                     },
-//                     )*
-//                 }
-//             }
-//         }
+            fn producer<IntoP>(&self, producer: IntoP) -> GeneratedProducerIndex
+            where
+                IntoP: Into<GeneratedProducer>,
+            {
+                let producer = producer.into();
+                match self.class {
+                    $(
+                    Self::Class::$node => match producer {
+                        Self::Producer::$node(_) => CommonProducerIndex::new(*self, producer),
+                        #[allow(unreachable_patterns)]
+                        _ => panic!("Node does not offer such producer")
+                    },
+                    )*
+                }
+            }
+        }
 
-//         #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-//         pub enum GeneratedConsumer {
-//             $(
-//             $node(<$node as Node<$payload>>::Consumer),
-//             )*
-//         }
+        #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
+        pub enum GeneratedConsumer {
+            $(
+            $node(<$node as Node<$payload>>::Consumer),
+            )*
+        }
 
-//         impl ExternalConsumer for GeneratedConsumer {}
+        impl ExternalConsumer for GeneratedConsumer {}
 
-//         pub type GeneratedConsumerIndex = CommonConsumerIndex<GeneratedNodeIndex>;
+        pub type GeneratedConsumerIndex = CommonConsumerIndex<GeneratedNodeIndex>;
 
-//         #[derive(PartialEq, Eq, Copy, Clone, Hash)]
-//         pub enum GeneratedProducer {
-//             $(
-//             $node(<$node as Node<$payload>>::Producer),
-//             )*
-//         }
+        #[derive(PartialEq, Eq, Copy, Clone, Hash)]
+        pub enum GeneratedProducer {
+            $(
+            $node(<$node as Node<$payload>>::Producer),
+            )*
+        }
 
-//         impl ExternalProducer for GeneratedProducer {}
+        impl ExternalProducer for GeneratedProducer {}
 
-//         pub type GeneratedProducerIndex = CommonProducerIndex<GeneratedNodeIndex>;
+        pub type GeneratedProducerIndex = CommonProducerIndex<GeneratedNodeIndex>;
 
-//         pub type $graph = SignalGraph<
-//             SignalNode<GeneratedNode>,
-//             SignalNodeIndex<GeneratedNodeIndex>,
-//             SignalNodeConsumerIndex<GeneratedConsumerIndex>,
-//             SignalNodeProducerIndex<GeneratedProducerIndex>,
-//         >;
-//     };
-// }
+        pub type $graph = SignalGraph<
+            GeneratedNode,
+            GeneratedNodeIndex,
+            GeneratedConsumerIndex,
+            GeneratedProducerIndex,
+        >;
+    };
+}
 
 // #[cfg(test)]
 // mod tests {
