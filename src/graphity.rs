@@ -1,13 +1,13 @@
 #[macro_export]
 macro_rules! graphity {
     ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
-        // TODO: Use all without imports
-        use graphity::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
-        use graphity::graph::{CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex};
+        use graphity::graph::{
+            CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex
+        };
         use graphity::node::{
             ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper, NodeClass,
         };
-        use graphity::signal::{SignalNode, SignalNodeConsumer, SignalNodeProducer, SignalGraph, SignalNodeConsumerIndex, SignalNodeProducerIndex, SignalNodeIndex};
+        use graphity::signal::SignalGraph;
 
         $(
         impl From<$node> for GeneratedNode {
@@ -119,7 +119,6 @@ macro_rules! graphity {
                 Self { class, index }
             }
 
-            // TODO : Check class
             fn consumer<IntoC>(&self, consumer: IntoC) -> GeneratedConsumerIndex
             where
                 IntoC: Into<GeneratedConsumer>,
@@ -184,326 +183,112 @@ macro_rules! graphity {
     };
 }
 
-// #[cfg(test)]
-// mod tests {
-//     // We cannot user super::* due to `graphity::...` calls in the macro.
-//     use graphity::*;
+#[cfg(test)]
+mod tests {
+    use graphity::node::{Node, NodeWrapper};
+    use graphity::graph::NodeIndex;
 
-//     pub struct Number(i32);
+    pub struct Number(i32);
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//     pub struct NumberOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub enum NumberInput {}
 
-//     impl Node<i32> for Number {
-//         type Consumer = NoConsumer;
-//         type Producer = NumberOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub struct NumberOutput;
 
-//         fn read(&self, _producer: Self::Producer) -> i32 {
-//             self.0
-//         }
-//     }
+    impl Node<i32> for Number {
+        type Consumer = NumberInput;
+        type Producer = NumberOutput;
 
-//     #[derive(Default)]
-//     pub struct Plus {
-//         input1: i32,
-//         input2: i32,
-//         output: i32,
-//     }
+        fn read(&self, _producer: Self::Producer) -> i32 {
+            self.0
+        }
+    }
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//     pub enum PlusInput {
-//         In1,
-//         In2,
-//     }
+    #[derive(Default)]
+    pub struct Plus {
+        input1: i32,
+        input2: i32,
+        output: i32,
+    }
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//     pub struct PlusOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub enum PlusInput {
+        In1,
+        In2,
+    }
 
-//     impl Node<i32> for Plus {
-//         type Consumer = PlusInput;
-//         type Producer = PlusOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub struct PlusOutput;
 
-//         fn tick(&mut self) {
-//             self.output = self.input1 + self.input2;
-//         }
+    impl Node<i32> for Plus {
+        type Consumer = PlusInput;
+        type Producer = PlusOutput;
 
-//         fn write(&mut self, consumer: Self::Consumer, input: i32) {
-//             match consumer {
-//                 PlusInput::In1 => self.input1 = input,
-//                 PlusInput::In2 => self.input2 = input,
-//             }
-//         }
+        fn tick(&mut self) {
+            self.output = self.input1 + self.input2;
+        }
 
-//         fn read(&self, _producer: Self::Producer) -> i32 {
-//             self.output
-//         }
-//     }
+        fn write(&mut self, consumer: Self::Consumer, input: i32) {
+            match consumer {
+                PlusInput::In1 => self.input1 = input,
+                PlusInput::In2 => self.input2 = input,
+            }
+        }
 
-//     #[derive(Default)]
-//     pub struct Recorder(i32);
+        fn read(&self, _producer: Self::Producer) -> i32 {
+            self.output
+        }
+    }
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//     pub struct RecorderInput;
+    #[derive(Default)]
+    pub struct Recorder(i32);
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-//     pub struct RecorderOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub struct RecorderInput;
 
-//     impl Node<i32> for Recorder {
-//         type Consumer = RecorderInput;
-//         type Producer = RecorderOutput;
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    pub struct RecorderOutput;
 
-//         fn read(&self, _producer: Self::Producer) -> i32 {
-//             self.0
-//         }
+    impl Node<i32> for Recorder {
+        type Consumer = RecorderInput;
+        type Producer = RecorderOutput;
 
-//         fn write(&mut self, _consumer: Self::Consumer, input: i32) {
-//             self.0 = input;
-//         }
-//     }
+        fn read(&self, _producer: Self::Producer) -> i32 {
+            self.0
+        }
 
-//     mod node {
-//         use super::*;
+        fn write(&mut self, _consumer: Self::Consumer, input: i32) {
+            self.0 = input;
+        }
+    }
 
-//         #[test]
-//         fn positive_input_output_flow() {
-//             let mut node = Plus::default();
+    // Simple tree:
+    //
+    //    [Rec]
+    //      |
+    //     [+]
+    //    /   \
+    //  [1]   [2]
+    //
+    // Should save 3 to the end consumer.
+    #[test]
+    fn simple_tree() {
+        mod g {
+            use super::{Number, Plus, Recorder};
+            graphity!(Graph<i32>; Number, Plus, Recorder);
+        }
 
-//             node.write(PlusInput::In1, 1);
-//             node.write(PlusInput::In2, 2);
-//             node.tick();
+        let mut graph = g::Graph::new();
+        let one = graph.add_node(Number(1));
+        let two = graph.add_node(Number(2));
+        let plus = graph.add_node(Plus::default());
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
+        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
+        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
 
-//             assert_eq!(node.read(PlusOutput), 3);
-//         }
-//     }
-
-//     mod graph {
-//         use super::*;
-
-//         // Simple tree:
-//         //
-//         //    [Rec]
-//         //      |
-//         //     [+]
-//         //    /   \
-//         //  [1]   [2]
-//         //
-//         // Should save 3 to the end consumer.
-//         #[test]
-//         fn simple_tree() {
-//             mod g {
-//                 use super::{Number, Plus, Recorder};
-//                 graphity!(Graph<i32>; Number, Plus, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-//             let two = graph.add_node(Number(2));
-//             let plus = graph.add_node(Plus::default());
-//             let recorder = graph.add_node(Recorder::default());
-//             graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-//             graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-//             graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder).unwrap().read(RecorderOutput), 0);
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder).unwrap().read(RecorderOutput), 3);
-//         }
-
-//         // Graph with 2 end consumers:
-//         //
-//         //  [Rec]   [Rec]
-//         //      \   /
-//         //       [+]
-//         //      /   \
-//         //    [1]   [2]
-//         //
-//         // Should save 3 to both.
-//         #[test]
-//         fn multiple_consumers() {
-//             mod g {
-//                 use super::{Number, Plus, Recorder};
-//                 graphity!(Graph<i32>; Number, Plus, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-//             let two = graph.add_node(Number(2));
-//             let plus = graph.add_node(Plus::default());
-//             let recorder1 = graph.add_node(Recorder::default());
-//             let recorder2 = graph.add_node(Recorder::default());
-//             graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-//             graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-//             graph.add_edge(plus.producer(PlusOutput), recorder1.consumer(RecorderInput));
-//             graph.add_edge(plus.producer(PlusOutput), recorder2.consumer(RecorderInput));
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder1).unwrap().read(RecorderOutput), 0);
-//             assert_eq!(graph.get_node(&recorder1).unwrap().read(RecorderOutput), 0);
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder2).unwrap().read(RecorderOutput), 3);
-//             assert_eq!(graph.get_node(&recorder2).unwrap().read(RecorderOutput), 3);
-//         }
-
-//         // Graph with a loop:
-//         //
-//         //  [Rec]    __
-//         //      \   /  |
-//         //       [+]   V
-//         //      /   \__|
-//         //    [1]
-//         //
-//         // Should feedback and keep increasing the recorded value.
-//         //#[test]
-//         // XXX: Skip this one for now, there is a flake due to random ordering of nodes
-//         fn internal_cycle() {
-//             mod g {
-//                 use super::{Number, Plus, Recorder};
-//                 graphity!(Graph<i32>; Number, Plus, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-//             let plus = graph.add_node(Plus::default());
-//             let recorder = graph.add_node(Recorder::default());
-//             graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-//             graph.add_edge(plus.producer(PlusOutput), plus.consumer(PlusInput::In2));
-//             graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder).unwrap().read(RecorderOutput), 0);
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder).unwrap().read(RecorderOutput), 1);
-
-//             graph.tick();
-//             assert_eq!(graph.get_node(&recorder).unwrap().read(RecorderOutput), 2);
-//         }
-
-//         #[test]
-//         fn add_and_get_node() {
-//             mod g {
-//                 use super::Number;
-//                 graphity!(Graph<i32>; Number);
-//             }
-
-//             let mut graph = g::Graph::new();
-
-//             let one = graph.add_node(Number(1));
-//             assert!(graph.get_node(&one).is_some());
-//         }
-
-//         #[test]
-//         fn get_nonexistent_node() {
-//             mod g {
-//                 use super::Number;
-//                 graphity!(Graph<i32>; Number);
-//             }
-
-//             let one = {
-//                 let mut graph = g::Graph::new();
-//                 graph.add_node(Number(1))
-//             };
-//             let graph = g::Graph::new();
-
-//             assert!(graph.get_node(&one).is_none());
-//         }
-
-//         #[test]
-//         fn read_node() {
-//             mod g {
-//                 use super::Number;
-//                 graphity!(Graph<i32>; Number);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-
-//             assert_eq!(graph.get_node(&one).unwrap().read(NumberOutput), 1);
-//         }
-
-//         #[test]
-//         #[should_panic(expected = "Node does not provide given producer")]
-//         fn panic_on_read_nonexistent_producer() {
-//             mod g {
-//                 use super::{Number, Recorder};
-//                 graphity!(Graph<i32>; Number, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-
-//             assert_eq!(graph.get_node(&one).unwrap().read(RecorderOutput), 1);
-//         }
-
-//         #[test]
-//         fn get_consumer_index() {
-//             mod g {
-//                 use super::Plus;
-//                 graphity!(Graph<i32>; Plus);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let plus = graph.add_node(Plus::default());
-
-//             plus.consumer(PlusInput::In1);
-//         }
-
-//         #[test]
-//         #[should_panic(expected = "Node does not provide given consumer")]
-//         fn panic_on_get_invalid_consumer_index() {
-//             mod g {
-//                 use super::{Plus, Recorder};
-//                 graphity!(Graph<i32>; Plus, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let plus = graph.add_node(Plus::default());
-
-//             plus.consumer(RecorderInput);
-//         }
-
-//         #[test]
-//         fn get_producer_index() {
-//             mod g {
-//                 use super::Plus;
-//                 graphity!(Graph<i32>; Plus);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let plus = graph.add_node(Plus::default());
-
-//             plus.producer(PlusOutput);
-//         }
-
-//         #[test]
-//         #[should_panic(expected = "Node does not provide given producer")]
-//         fn panic_on_get_invalid_producer_index() {
-//             mod g {
-//                 use super::{Plus, Recorder};
-//                 graphity!(Graph<i32>; Plus, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let plus = graph.add_node(Plus::default());
-
-//             plus.producer(RecorderOutput);
-//         }
-
-//         #[test]
-//         fn add_edge() {
-//             mod g {
-//                 use super::{Number, Recorder};
-//                 graphity!(Graph<i32>; Number, Recorder);
-//             }
-
-//             let mut graph = g::Graph::new();
-//             let one = graph.add_node(Number(1));
-//             let recorder = graph.add_node(Recorder::default());
-
-//             graph.add_edge(one.producer(NumberOutput), recorder.consumer(RecorderInput));
-//         }
-//     }
-// }
+        graph.tick();
+        assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
+    }
+}

@@ -8,7 +8,7 @@ use graphity::node::Node;
 
 mod g {
     use super::{Number, Printer};
-    graphity!(ExampleGraph<i32>; Printer, Number);
+    graphity!(Graph<i32>; Printer, Number);
 }
 
 #[derive(Default)]
@@ -53,7 +53,7 @@ impl Node<i32> for Number {
 }
 
 fn main() {
-    let mut graph = g::ExampleGraph::new();
+    let mut graph = g::Graph::new();
 
     let ten = graph.add_node(Number(10));
     let printer = graph.add_node(Printer::default());
