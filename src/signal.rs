@@ -17,14 +17,33 @@ pub enum SignalNode<N>
 where
     N: NodeWrapper,
 {
-    RegisteredNode(N),
-    InternalNode(InternalNode<N::Payload>),
+    Registered(N),
+    Internal(InternalNode<N::Payload>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeClass<NC> {
-    RegisteredNode(NC),
-    InternalNode(InternalClass),
+    Registered(NC),
+    Internal(InternalClass),
+}
+
+impl<N> SignalNode<N>
+where
+    N: NodeWrapper,
+{
+    fn must_registered(&self) -> &N {
+        match self {
+            Self::Registered(node) => node,
+            _ => panic!("SignalNode is not of variant Registered"),
+        }
+    }
+
+    fn must_registered_mut(&mut self) -> &mut N {
+        match self {
+            Self::Registered(node) => node,
+            _ => panic!("SignalNode is not of variant Registered"),
+        }
+    }
 }
 
 impl<N> NodeClass for SignalNode<N>
@@ -35,10 +54,8 @@ where
 
     fn class(&self) -> Self::Class {
         match self {
-            Self::RegisteredNode(registered_node) => {
-                Self::Class::RegisteredNode(registered_node.class())
-            }
-            Self::InternalNode(internal_node) => Self::Class::InternalNode(internal_node.class()),
+            Self::Registered(node) => Self::Class::Registered(node.class()),
+            Self::Internal(node) => Self::Class::Internal(node.class()),
         }
     }
 }
@@ -53,8 +70,8 @@ where
 
     fn tick(&mut self) {
         match self {
-            Self::RegisteredNode(registered_node) => registered_node.tick(),
-            Self::InternalNode(internal_node) => internal_node.tick(),
+            Self::Registered(node) => node.tick(),
+            Self::Internal(node) => node.tick(),
         }
     }
 
@@ -64,13 +81,13 @@ where
     {
         let producer = producer.into();
         match self {
-            Self::RegisteredNode(registered_node) => match producer {
-                Self::Producer::RegisteredNode(producer) => registered_node.read(producer),
-                _ => panic!("Bad"),
+            Self::Registered(node) => match producer {
+                Self::Producer::Registered(producer) => node.read(producer),
+                _ => panic!("Node does not offer such producer"),
             },
-            Self::InternalNode(internal_node) => match producer {
-                Self::Producer::InternalNode(producer) => internal_node.read(producer),
-                _ => panic!("Bad"),
+            Self::Internal(node) => match producer {
+                Self::Producer::Internal(producer) => node.read(producer),
+                _ => panic!("Node does not offer such producer"),
             },
         }
     }
@@ -81,13 +98,13 @@ where
     {
         let consumer = consumer.into();
         match self {
-            Self::RegisteredNode(registered_node) => match consumer {
-                Self::Consumer::RegisteredNode(consumer) => registered_node.write(consumer, input),
-                _ => panic!("Bad"),
+            Self::Registered(node) => match consumer {
+                Self::Consumer::Registered(consumer) => node.write(consumer, input),
+                _ => panic!("Node does not offer such consumer"),
             },
-            Self::InternalNode(internal_node) => match consumer {
-                Self::Consumer::InternalNode(consumer) => internal_node.write(consumer, input),
-                _ => panic!("Bad"),
+            Self::Internal(node) => match consumer {
+                Self::Consumer::Internal(consumer) => node.write(consumer, input),
+                _ => panic!("Node does not offer such consumer"),
             },
         }
     }
@@ -95,8 +112,17 @@ where
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeIndex<NI> {
-    RegisteredNode(NI),
-    InternalNode(InternalNodeIndex),
+    Registered(NI),
+    Internal(InternalNodeIndex),
+}
+
+impl<NI> SignalNodeIndex<NI> {
+    fn must_registered(&self) -> &NI {
+        match self {
+            Self::Registered(node_index) => node_index,
+            _ => panic!("SignalNodeIndex is not of variant Registered"),
+        }
+    }
 }
 
 impl<NI> NodeIndex for SignalNodeIndex<NI>
@@ -111,27 +137,23 @@ where
 
     fn new(class: SignalNodeClass<NI::Class>, index: usize) -> Self {
         match class {
-            Self::Class::RegisteredNode(class) => Self::RegisteredNode(NI::new(class, index)),
-            Self::Class::InternalNode(class) => {
-                Self::InternalNode(InternalNodeIndex::new(class, index))
-            }
+            Self::Class::Registered(class) => Self::Registered(NI::new(class, index)),
+            Self::Class::Internal(class) => Self::Internal(InternalNodeIndex::new(class, index)),
         }
     }
 
-    // TODO: Define public and private. Private one would be accepting Internal C
-    fn consumer<IntoC>(&self, consumer: IntoC) -> SignalConsumerIndex<NI::ConsumerIndex>
+    fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
     where
         IntoC: Into<Self::Consumer>,
     {
-        SignalConsumerIndex::new(*self, consumer.into())
+        Self::ConsumerIndex::new(*self, consumer.into())
     }
 
-    // TODO: Define public and private. Private one would be accepting Internal P
-    fn producer<IntoP>(&self, producer: IntoP) -> SignalProducerIndex<NI::ProducerIndex>
+    fn producer<IntoP>(&self, producer: IntoP) -> Self::ProducerIndex
     where
         IntoP: Into<Self::Producer>,
     {
-        SignalProducerIndex::new(*self, producer.into())
+        Self::ProducerIndex::new(*self, producer.into())
     }
 }
 
@@ -140,8 +162,8 @@ pub enum SignalConsumer<C>
 where
     C: Copy + Hash,
 {
-    RegisteredNode(C),
-    InternalNode(InternalConsumer),
+    Registered(C),
+    Internal(InternalConsumer),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -149,8 +171,8 @@ pub enum SignalConsumerIndex<CI>
 where
     CI: ConsumerIndex,
 {
-    RegisteredNode(CI),
-    InternalNode(InternalConsumerIndex),
+    Registered(CI),
+    Internal(InternalConsumerIndex),
 }
 
 impl<CI> ConsumerIndex for SignalConsumerIndex<CI>
@@ -162,40 +184,38 @@ where
 
     fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self {
         match node_index {
-            Self::NodeIndex::RegisteredNode(node_index) => match consumer {
-                SignalConsumer::RegisteredNode(consumer) => {
-                    SignalConsumerIndex::RegisteredNode(CI::new(node_index, consumer))
+            Self::NodeIndex::Registered(node_index) => match consumer {
+                Self::Consumer::Registered(consumer) => {
+                    Self::Registered(CI::new(node_index, consumer))
                 }
-                _ => panic!("BAD mismatch"),
+                _ => panic!("Node does not offer such consumer"),
             },
-            Self::NodeIndex::InternalNode(node_index) => match consumer {
-                SignalConsumer::InternalNode(consumer) => SignalConsumerIndex::InternalNode(
-                    InternalConsumerIndex::new(node_index, consumer),
-                ),
-                _ => panic!("BAD mismatch"),
+            Self::NodeIndex::Internal(node_index) => match consumer {
+                Self::Consumer::Internal(consumer) => {
+                    Self::Internal(InternalConsumerIndex::new(node_index, consumer))
+                }
+                _ => panic!("Node does not offer such consumer"),
             },
         }
     }
 
     fn node_index(&self) -> Self::NodeIndex {
         match self {
-            Self::RegisteredNode(consumer_index) => {
-                SignalNodeIndex::RegisteredNode(consumer_index.node_index())
+            Self::Registered(consumer_index) => {
+                Self::NodeIndex::Registered(consumer_index.node_index())
             }
-            Self::InternalNode(consumer_index) => {
-                SignalNodeIndex::InternalNode(consumer_index.node_index())
+            Self::Internal(consumer_index) => {
+                Self::NodeIndex::Internal(consumer_index.node_index())
             }
         }
     }
 
     fn consumer(&self) -> Self::Consumer {
         match self {
-            Self::RegisteredNode(consumer_index) => {
-                SignalConsumer::RegisteredNode(consumer_index.consumer())
+            Self::Registered(consumer_index) => {
+                Self::Consumer::Registered(consumer_index.consumer())
             }
-            Self::InternalNode(consumer_index) => {
-                SignalConsumer::InternalNode(consumer_index.consumer())
-            }
+            Self::Internal(consumer_index) => Self::Consumer::Internal(consumer_index.consumer()),
         }
     }
 }
@@ -205,8 +225,8 @@ pub enum SignalProducer<P>
 where
     P: Copy + Hash,
 {
-    RegisteredNode(P),
-    InternalNode(InternalProducer),
+    Registered(P),
+    Internal(InternalProducer),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -214,8 +234,8 @@ pub enum SignalProducerIndex<CI>
 where
     CI: ProducerIndex,
 {
-    RegisteredNode(CI),
-    InternalNode(InternalProducerIndex),
+    Registered(CI),
+    Internal(InternalProducerIndex),
 }
 
 impl<CI> ProducerIndex for SignalProducerIndex<CI>
@@ -227,47 +247,46 @@ where
 
     fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self {
         match node_index {
-            Self::NodeIndex::RegisteredNode(node_index) => match producer {
-                SignalProducer::RegisteredNode(producer) => {
-                    SignalProducerIndex::RegisteredNode(CI::new(node_index, producer))
+            Self::NodeIndex::Registered(node_index) => match producer {
+                Self::Producer::Registered(producer) => {
+                    Self::Registered(CI::new(node_index, producer))
                 }
-                _ => panic!("BAD mismatch"),
+                _ => panic!("Node does not offer such producer"),
             },
-            Self::NodeIndex::InternalNode(node_index) => match producer {
-                SignalProducer::InternalNode(producer) => SignalProducerIndex::InternalNode(
-                    InternalProducerIndex::new(node_index, producer),
-                ),
-                _ => panic!("BAD mismatch"),
+            Self::NodeIndex::Internal(node_index) => match producer {
+                Self::Producer::Internal(producer) => {
+                    Self::Internal(InternalProducerIndex::new(node_index, producer))
+                }
+                _ => panic!("Node does not offer such producer"),
             },
         }
     }
 
     fn node_index(&self) -> Self::NodeIndex {
         match self {
-            Self::RegisteredNode(producer_index) => {
-                SignalNodeIndex::RegisteredNode(producer_index.node_index())
+            Self::Registered(producer_index) => {
+                Self::NodeIndex::Registered(producer_index.node_index())
             }
-            Self::InternalNode(producer_index) => {
-                SignalNodeIndex::InternalNode(producer_index.node_index())
+            Self::Internal(producer_index) => {
+                Self::NodeIndex::Internal(producer_index.node_index())
             }
         }
     }
 
     fn producer(&self) -> Self::Producer {
         match self {
-            Self::RegisteredNode(producer_index) => {
-                SignalProducer::RegisteredNode(producer_index.producer())
+            Self::Registered(producer_index) => {
+                Self::Producer::Registered(producer_index.producer())
             }
-            Self::InternalNode(producer_index) => {
-                SignalProducer::InternalNode(producer_index.producer())
-            }
+            Self::Internal(producer_index) => Self::Producer::Internal(producer_index.producer()),
         }
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct SignalGraph<N, NI, CI, PI>
 where
-    N: NodeWrapper<Class = NI::Class>,
+    N: NodeWrapper<Class = NI::Class, Consumer = NI::Consumer, Producer = NI::Producer>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
@@ -281,13 +300,10 @@ where
     sorted_nodes: Vec<SignalNodeIndex<NI>>,
 }
 
-// TODO XXX Wrap into Signal* internally, then we can provide public and private interface
+#[allow(clippy::new_without_default)]
 impl<N, NI, CI, PI> SignalGraph<N, NI, CI, PI>
 where
-    // TODO: Is all needed?
     N: NodeWrapper<Class = NI::Class, Consumer = NI::Consumer, Producer = NI::Producer>,
-    FeedbackSource<N::Payload>: Into<SignalNode<N>>,
-    FeedbackSink<N::Payload>: Into<SignalNode<N>>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
     CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
@@ -300,156 +316,112 @@ where
         }
     }
 
-    // TODO: Define public and private. Private one would be accepting Internal N
-    // public would return public node index too
-    fn add_signal_node<IntoN>(&mut self, node: IntoN) -> SignalNodeIndex<NI>
-    where
-        IntoN: Into<SignalNode<N>>,
-    {
-        let index = self.graph.add_node(node.into());
-        self.update_cache();
-        index
-    }
-
     pub fn add_node<IntoN>(&mut self, node: IntoN) -> NI
     where
         IntoN: Into<N>,
     {
-        match self.add_signal_node(SignalNode::RegisteredNode(node.into())) {
-            SignalNodeIndex::RegisteredNode(node_index) => node_index,
-            _ => unreachable!(),
-        }
+        let node = SignalNode::Registered(node.into());
+        let index = *self.graph.add_node(node).must_registered();
+        self.update_cache();
+        index
     }
 
-    // TODO: Private
-    fn remove_signal_node(&mut self, node_index: SignalNodeIndex<NI>) {
+    pub fn remove_node(&mut self, node_index: NI) {
+        let node_index = SignalNodeIndex::Registered(node_index);
         self.graph.remove_node(node_index);
         self.update_cache();
     }
 
-    pub fn remove_node(&mut self, node_index: NI) {
-        self.remove_signal_node(SignalNodeIndex::RegisteredNode(node_index));
-    }
-
-    fn signal_node(&self, node_index: &SignalNodeIndex<NI>) -> &SignalNode<N> {
-        self.graph.node(node_index)
-    }
-
     pub fn node(&self, node_index: &NI) -> &N {
-        match self.signal_node(&SignalNodeIndex::RegisteredNode(*node_index)) {
-            SignalNode::RegisteredNode(node) => node,
-            _ => unreachable!(),
-        }
+        let node_index = SignalNodeIndex::Registered(*node_index);
+        self.graph.node(&node_index).must_registered()
     }
 
-    // pub fn node_mut(&mut self, node_index: &SignalNodeIndex<NI>) -> &mut SignalNode<N> {
-    //     self.graph.node_mut(node_index)
-    // }
+    pub fn node_mut(&mut self, node_index: &NI) -> &mut N {
+        let node_index = SignalNodeIndex::Registered(*node_index);
+        self.graph.node_mut(&node_index).must_registered_mut()
+    }
 
-    fn add_signal_edge(
-        &mut self,
-        producer: SignalProducerIndex<PI>,
-        consumer: SignalConsumerIndex<CI>,
-    ) {
+    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
+        let producer = SignalProducerIndex::Registered(producer);
+        let consumer = SignalConsumerIndex::Registered(consumer);
+
         if self.has_edge(producer, consumer) {
             return;
         }
 
         self.graph.add_edge(producer, consumer);
 
-        // TODO cleanup
-        let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-        let edges: HashSet<(_, _)> = self
-            .graph
-            .edges
-            .iter()
-            .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
-            .collect();
-        if let Err(Cycle) = sort::topological_sort(nodes, edges) {
+        if self.has_cycles() {
             self.graph.remove_edge(producer, consumer);
-            let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<N::Payload>();
-            let feedback_source = self.graph.add_node(feedback_source);
-            let feedback_sink = self.graph.add_node(feedback_sink);
-            self.graph.add_edge(
-                producer,
-                feedback_source
-                    .consumer(SignalConsumer::InternalNode(FeedbackSourceConsumer.into())),
-            );
-            self.graph.add_edge(
-                feedback_sink.producer(SignalProducer::InternalNode(FeedbackSinkProducer.into())),
-                consumer,
-            );
-            self.feedback_edges
-                .insert((producer, consumer), (feedback_source, feedback_sink));
+            self.add_feedback_edge(producer, consumer);
         }
 
         self.update_cache();
     }
 
-    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
-        self.add_signal_edge(
-            SignalProducerIndex::RegisteredNode(producer),
-            SignalConsumerIndex::RegisteredNode(consumer),
-        );
-    }
-
-    fn remove_signal_edge(
+    fn add_feedback_edge(
         &mut self,
         producer: SignalProducerIndex<PI>,
         consumer: SignalConsumerIndex<CI>,
     ) {
+        let (source, sink) = feedback::new_feedback_pair::<N::Payload>();
+
+        let source = self.graph.add_node(source);
+        let sink = self.graph.add_node(sink);
+
+        self.graph
+            .add_edge(producer, source.consumer(FeedbackSourceConsumer));
+        self.graph
+            .add_edge(sink.producer(FeedbackSinkProducer), consumer);
+
+        self.feedback_edges
+            .insert((producer, consumer), (source, sink));
+    }
+
+    pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
+        let producer = SignalProducerIndex::Registered(producer);
+        let consumer = SignalConsumerIndex::Registered(consumer);
+
         if self.graph.has_edge(producer, consumer) {
             self.graph.remove_edge(producer, consumer);
+            self.drop_redundant_feedbacks();
         } else if self.feedback_edges.contains_key(&(producer, consumer)) {
-            let (source_index, sink_index) =
-                self.feedback_edges.get(&(producer, consumer)).unwrap();
-            self.graph.remove_node(*source_index);
-            self.graph.remove_node(*sink_index);
-            self.feedback_edges.remove(&(producer, consumer));
-        }
-
-        // TODO: Make this pretty, this is horrendus
-        {
-            let mut edges_to_remove = HashSet::new();
-            for ((producer, consumer), (feedback_source_index, feedback_sink_index)) in
-                self.feedback_edges.iter()
-            {
-                self.graph.add_edge(*producer, *consumer);
-
-                let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-                let edges: HashSet<(_, _)> = self
-                    .graph
-                    .edges
-                    .iter()
-                    .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
-                    .collect();
-
-                let has_cycle = match sort::topological_sort(nodes, edges) {
-                    Err(Cycle) => true,
-                    Ok(_) => false,
-                };
-
-                if has_cycle {
-                    self.graph.remove_edge(*producer, *consumer);
-                } else {
-                    self.graph.remove_node(*feedback_source_index);
-                    self.graph.remove_node(*feedback_sink_index);
-                    edges_to_remove.insert((*producer, *consumer));
-                }
-            }
-            for (producer, consumer) in edges_to_remove.iter() {
-                self.feedback_edges.remove(&(*producer, *consumer));
-            }
+            self.remove_feedback_edge(producer, consumer);
         }
 
         self.update_cache();
     }
 
-    pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
-        self.remove_signal_edge(
-            SignalProducerIndex::RegisteredNode(producer),
-            SignalConsumerIndex::RegisteredNode(consumer),
-        );
+    fn remove_feedback_edge(
+        &mut self,
+        producer: SignalProducerIndex<PI>,
+        consumer: SignalConsumerIndex<CI>,
+    ) {
+        let (source, sink) = self.feedback_edges.get(&(producer, consumer)).unwrap();
+        self.graph.remove_node(*source);
+        self.graph.remove_node(*sink);
+        self.feedback_edges.remove(&(producer, consumer));
+    }
+
+    fn drop_redundant_feedbacks(&mut self) {
+        let mut redundant_edges = HashSet::new();
+
+        for ((producer, consumer), (source, sink)) in self.feedback_edges.iter() {
+            self.graph.add_edge(*producer, *consumer);
+
+            if self.has_cycles() {
+                self.graph.remove_edge(*producer, *consumer);
+            } else {
+                self.graph.remove_node(*source);
+                self.graph.remove_node(*sink);
+                redundant_edges.insert((*producer, *consumer));
+            }
+        }
+
+        for edge in redundant_edges.iter() {
+            self.feedback_edges.remove(edge);
+        }
     }
 
     pub fn has_edge(
@@ -457,15 +429,11 @@ where
         producer: SignalProducerIndex<PI>,
         consumer: SignalConsumerIndex<CI>,
     ) -> bool {
-        // TODO: Consider feedbacks too
         self.graph.has_edge(producer, consumer)
+            || self.feedback_edges.contains_key(&(producer, consumer))
     }
 
-    // TODO: Impl public has edge
-
     pub fn tick(&mut self) {
-        // TODO: Define a function on graph that would allow us to iterate all node pairs
-        // TODO: Make this more efficient
         for node_index in self.sorted_nodes.iter() {
             self.graph.nodes.get_mut(node_index).unwrap().tick();
 
@@ -475,20 +443,22 @@ where
                 }
 
                 let source = self.graph.node(&source_index.node_index());
-                let producer: SignalProducer<NI::Producer> = source_index.producer();
-                let output = source.read(producer);
+                let output = source.read(source_index.producer());
                 let destination = self
                     .graph
                     .nodes
                     .get_mut(&destination_index.node_index())
                     .unwrap();
-                let consumer = destination_index.consumer();
-                destination.write(consumer, output);
+                destination.write(destination_index.consumer(), output);
             }
         }
     }
 
     fn update_cache(&mut self) {
+        self.sorted_nodes = self.topologically_sorted_nodes().unwrap();
+    }
+
+    fn topologically_sorted_nodes(&self) -> Result<Vec<SignalNodeIndex<NI>>, sort::Cycle> {
         let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
         let edges: HashSet<(_, _)> = self
             .graph
@@ -496,13 +466,11 @@ where
             .iter()
             .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
             .collect();
+        sort::topological_sort(nodes, edges)
+    }
 
-        let sorted_nodes = match sort::topological_sort(nodes, edges) {
-            Ok(nodes) => nodes,
-            _ => panic!("Bad"),
-        };
-
-        self.sorted_nodes = sorted_nodes;
+    fn has_cycles(&self) -> bool {
+        self.topologically_sorted_nodes().is_err()
     }
 }
 
@@ -511,7 +479,7 @@ where
     N: NodeWrapper,
 {
     fn from(feedback_source: FeedbackSource<N::Payload>) -> Self {
-        Self::InternalNode(InternalNode::FeedbackSource(feedback_source))
+        Self::Internal(InternalNode::FeedbackSource(feedback_source))
     }
 }
 
@@ -520,7 +488,7 @@ where
     N: NodeWrapper,
 {
     fn from(feedback_sink: FeedbackSink<N::Payload>) -> Self {
-        Self::InternalNode(InternalNode::FeedbackSink(feedback_sink))
+        Self::Internal(InternalNode::FeedbackSink(feedback_sink))
     }
 }
 
@@ -529,7 +497,7 @@ where
     C: Hash + Copy,
 {
     fn from(feedback_source: FeedbackSourceConsumer) -> Self {
-        Self::InternalNode(InternalConsumer::FeedbackSource(feedback_source))
+        Self::Internal(InternalConsumer::FeedbackSource(feedback_source))
     }
 }
 
@@ -538,7 +506,7 @@ where
     P: Hash + Copy,
 {
     fn from(feedback_sink: FeedbackSinkProducer) -> Self {
-        Self::InternalNode(InternalProducer::FeedbackSink(feedback_sink))
+        Self::Internal(InternalProducer::FeedbackSink(feedback_sink))
     }
 }
 
@@ -760,7 +728,6 @@ mod tests {
 
     impl ExternalNodeWrapper<Payload> for TestNode {}
 
-    // TODO: Can we move this and its implementation to a lib too?
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct TestNodeIndex {
         index: usize,
@@ -821,32 +788,26 @@ mod tests {
     #[test]
     fn write_tick_read_internal_signal_node() {
         let (source, sink) = feedback::new_feedback_pair();
-        let mut source: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
-        let mut sink: SignalNode<TestNode> = SignalNode::InternalNode(sink.into());
+        let mut source: SignalNode<TestNode> = SignalNode::Internal(source.into());
+        let mut sink: SignalNode<TestNode> = SignalNode::Internal(sink.into());
 
-        source.write(
-            SignalConsumer::InternalNode(FeedbackSourceConsumer.into()),
-            10,
-        );
+        source.write(SignalConsumer::Internal(FeedbackSourceConsumer.into()), 10);
         source.tick();
         sink.tick();
         assert_eq!(
-            sink.read(SignalProducer::InternalNode(FeedbackSinkProducer.into())),
+            sink.read(SignalProducer::Internal(FeedbackSinkProducer.into())),
             10
         );
     }
 
     #[test]
     fn write_tick_read_registered_signal_node() {
-        let mut node: SignalNode<TestNode> = SignalNode::RegisteredNode(Plus::default().into());
+        let mut node: SignalNode<TestNode> = SignalNode::Registered(Plus::default().into());
 
-        node.write(SignalConsumer::RegisteredNode(PlusInput::In1.into()), 10);
-        node.write(SignalConsumer::RegisteredNode(PlusInput::In2.into()), 20);
+        node.write(SignalConsumer::Registered(PlusInput::In1.into()), 10);
+        node.write(SignalConsumer::Registered(PlusInput::In2.into()), 20);
         node.tick();
-        assert_eq!(
-            node.read(SignalProducer::RegisteredNode(PlusOutput.into())),
-            30
-        );
+        assert_eq!(node.read(SignalProducer::Registered(PlusOutput.into())), 30);
     }
 
     // Simple tree:

@@ -115,6 +115,7 @@ where
     pub edges: HashSet<(PI, CI)>,
 }
 
+#[allow(clippy::new_without_default)]
 impl<N, NI, CI, PI> Graph<N, NI, CI, PI>
 where
     N: NodeClass,
