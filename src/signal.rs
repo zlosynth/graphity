@@ -312,22 +312,31 @@ where
     CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
-    graph: Graph<N, NI, CI, PI>,
-    feedback_edges: HashMap<(PI, CI), (NI, NI)>,
-    sorted_nodes: Vec<NI>,
+    graph: Graph<
+        SignalNode<N>,
+        SignalNodeIndex<NI>,
+        SignalNodeConsumerIndex<CI>,
+        SignalNodeProducerIndex<PI>,
+    >,
+    feedback_edges: HashMap<
+        (SignalNodeProducerIndex<PI>, SignalNodeConsumerIndex<CI>),
+        (SignalNodeIndex<NI>, SignalNodeIndex<NI>),
+    >,
+    sorted_nodes: Vec<SignalNodeIndex<NI>>,
 }
 
-// TODO: Wrap into Signal* internally
+// TODO XXX Wrap into Signal* internally, then we can provide public and private interface
 impl<N, NI, CI, PI> SignalGraph<N, NI, CI, PI>
 where
-    N: NodeWrapper<Class = NI::Class>,
-    FeedbackSource<N::Payload>: Into<N>,
-    FeedbackSink<N::Payload>: Into<N>,
-    <N as NodeWrapper>::Producer: From<NI::Producer>,
-    <N as NodeWrapper>::Consumer: From<NI::Consumer>,
+    // TODO: Is all needed?
+    N: NodeWrapper<Class = NI::Class, Consumer = NI::Consumer, Producer = NI::Producer>,
+    FeedbackSource<N::Payload>: Into<SignalNode<N>>,
+    FeedbackSink<N::Payload>: Into<SignalNode<N>>,
+    // <N as NodeWrapper>::Producer: From<NI::Producer>,
+    // <N as NodeWrapper>::Consumer: From<NI::Consumer>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
-    NI::Consumer: From<FeedbackSourceConsumer>,
-    NI::Producer: From<FeedbackSinkProducer>,
+    // NI::Consumer: From<FeedbackSourceConsumer>,
+    // NI::Producer: From<FeedbackSinkProducer>,
     CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
@@ -341,29 +350,33 @@ where
 
     // TODO: Define public and private. Private one would be accepting Internal N
     // public would return public node index too
-    pub fn add_node<IntoN>(&mut self, node: IntoN) -> NI
+    pub fn add_node<IntoN>(&mut self, node: IntoN) -> SignalNodeIndex<NI>
     where
-        IntoN: Into<N>,
+        IntoN: Into<SignalNode<N>>,
     {
         let index = self.graph.add_node(node.into());
         self.update_cache();
         index
     }
 
-    pub fn remove_node(&mut self, node_index: NI) {
+    pub fn remove_node(&mut self, node_index: SignalNodeIndex<NI>) {
         self.graph.remove_node(node_index);
         self.update_cache();
     }
 
-    pub fn node(&self, node_index: &NI) -> &N {
+    pub fn node(&self, node_index: &SignalNodeIndex<NI>) -> &SignalNode<N> {
         self.graph.node(node_index)
     }
 
-    pub fn node_mut(&mut self, node_index: &NI) -> &mut N {
+    pub fn node_mut(&mut self, node_index: &SignalNodeIndex<NI>) -> &mut SignalNode<N> {
         self.graph.node_mut(node_index)
     }
 
-    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
+    pub fn add_edge(
+        &mut self,
+        producer: SignalNodeProducerIndex<PI>,
+        consumer: SignalNodeConsumerIndex<CI>,
+    ) {
         if self.has_edge(producer, consumer) {
             return;
         }
@@ -394,7 +407,11 @@ where
         self.update_cache();
     }
 
-    pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
+    pub fn remove_edge(
+        &mut self,
+        producer: SignalNodeProducerIndex<PI>,
+        consumer: SignalNodeConsumerIndex<CI>,
+    ) {
         if self.graph.has_edge(producer, consumer) {
             self.graph.remove_edge(producer, consumer);
         } else if self.feedback_edges.contains_key(&(producer, consumer)) {
@@ -442,7 +459,11 @@ where
         self.update_cache();
     }
 
-    pub fn has_edge(&mut self, producer: PI, consumer: CI) -> bool {
+    pub fn has_edge(
+        &mut self,
+        producer: SignalNodeProducerIndex<PI>,
+        consumer: SignalNodeConsumerIndex<CI>,
+    ) -> bool {
         // TODO: Consider feedbacks too
         self.graph.has_edge(producer, consumer)
     }
@@ -476,13 +497,15 @@ where
                 }
 
                 let source = self.graph.node(&source_index.node_index());
-                let output = source.read(source_index.producer());
+                let producer: SignalNodeProducer<NI::Producer> = source_index.producer();
+                let output = source.read(producer);
                 let destination = self
                     .graph
                     .nodes
                     .get_mut(&destination_index.node_index())
                     .unwrap();
-                destination.write(destination_index.consumer(), output);
+                let consumer = destination_index.consumer();
+                destination.write(consumer, output);
             }
         }
     }
@@ -761,12 +784,8 @@ mod tests {
 
     type TestProducerIndex = CommonProducerIndex<TestNodeIndex>;
 
-    type TestSignalGraph = SignalGraph<
-        SignalNode<TestNode>,
-        SignalNodeIndex<TestNodeIndex>,
-        SignalNodeConsumerIndex<TestConsumerIndex>,
-        SignalNodeProducerIndex<TestProducerIndex>,
-    >;
+    type TestSignalGraph =
+        SignalGraph<TestNode, TestNodeIndex, TestConsumerIndex, TestProducerIndex>;
 
     #[test]
     fn convert_internal_node_to_signal_node() {
