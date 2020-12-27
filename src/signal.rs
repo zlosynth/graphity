@@ -782,7 +782,6 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum TestConsumer {
-        Number(NumberConsumer),
         Plus(PlusConsumer),
         Recorder(RecorderConsumer),
     }
