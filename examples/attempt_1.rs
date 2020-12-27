@@ -1,58 +1,67 @@
-use std::hash::Hash;
+// use std::hash::Hash;
 
-#[macro_use]
-extern crate graphity;
+// #[macro_use]
+// extern crate graphity;
 
-use graphity::{Graph, NoConsumer, NoProducer, Node, NodeIndex};
+// use graphity::graph::NodeIndex;
+// use graphity::node::Node;
 
-mod g {
-    use super::{Number, Printer};
-    graphity!(ExampleGraph<i32>; Printer, Number);
-}
+// mod g {
+//     use super::{Number, Printer};
+//     graphity!(ExampleGraph<i32>; Printer, Number);
+// }
 
-#[derive(Default)]
-pub struct Printer {
-    input: i32,
-}
+// #[derive(Default)]
+// pub struct Printer {
+//     input: i32,
+// }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct PrinterInput;
+// #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+// pub struct PrinterInput;
 
-impl Node<i32> for Printer {
-    type Consumer = PrinterInput;
-    type Producer = NoProducer;
+// #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+// pub enum PrinterOutput {}
 
-    fn tick(&mut self) {
-        println!("Printer says: {}", self.input);
-    }
+// impl Node<i32> for Printer {
+//     type Consumer = PrinterInput;
+//     type Producer = PrinterOutput;
 
-    fn write(&mut self, _consumer: Self::Consumer, input: i32) {
-        self.input = input;
-    }
-}
+//     fn tick(&mut self) {
+//         println!("Printer says: {}", self.input);
+//     }
 
-pub struct Number(i32);
+//     fn write(&mut self, _consumer: Self::Consumer, input: i32) {
+//         self.input = input;
+//     }
+// }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct NumberOutput;
+// pub struct Number(i32);
 
-impl Node<i32> for Number {
-    type Consumer = NoConsumer;
-    type Producer = NumberOutput;
+// #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+// pub enum NumberInput {}
 
-    fn read(&self, _producer: Self::Producer) -> i32 {
-        self.0
-    }
-}
+// #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+// pub struct NumberOutput;
 
-fn main() {
-    let mut graph = g::ExampleGraph::new();
+// impl Node<i32> for Number {
+//     type Consumer = NumberInput;
+//     type Producer = NumberOutput;
 
-    let ten = graph.add_node(Number(10));
-    let printer = graph.add_node(Printer::default());
+//     fn read(&self, _producer: Self::Producer) -> i32 {
+//         self.0
+//     }
+// }
 
-    graph.add_edge(ten.producer(NumberOutput), printer.consumer(PrinterInput));
+// fn main() {
+//     let mut graph = g::ExampleGraph::new();
 
-    graph.tick();
-    graph.tick();
-}
+//     let ten = graph.add_node(Number(10));
+//     let printer = graph.add_node(Printer::default());
+
+//     graph.add_edge(ten.producer(NumberOutput), printer.consumer(PrinterInput));
+
+//     graph.tick();
+//     graph.tick();
+// }
+
+fn main() {}

@@ -160,6 +160,7 @@ where
         }
     }
 
+    // TODO: Define public and private. Private one would be accepting Internal C
     fn consumer<IntoC>(&self, consumer: IntoC) -> SignalNodeConsumerIndex<NI::ConsumerIndex>
     where
         IntoC: Into<Self::Consumer>,
@@ -167,6 +168,7 @@ where
         SignalNodeConsumerIndex::new(*self, consumer.into())
     }
 
+    // TODO: Define public and private. Private one would be accepting Internal P
     fn producer<IntoP>(&self, producer: IntoP) -> SignalNodeProducerIndex<NI::ProducerIndex>
     where
         IntoP: Into<Self::Producer>,
@@ -303,7 +305,7 @@ where
     }
 }
 
-struct SignalGraph<N, NI, CI, PI>
+pub struct SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
     NI: NodeIndex<ConsumerIndex = CI, ProducerIndex = PI>,
@@ -315,6 +317,7 @@ where
     sorted_nodes: Vec<NI>,
 }
 
+// TODO: Wrap into Signal* internally
 impl<N, NI, CI, PI> SignalGraph<N, NI, CI, PI>
 where
     N: NodeWrapper<Class = NI::Class>,
@@ -336,6 +339,8 @@ where
         }
     }
 
+    // TODO: Define public and private. Private one would be accepting Internal N
+    // public would return public node index too
     pub fn add_node<IntoN>(&mut self, node: IntoN) -> NI
     where
         IntoN: Into<N>,
