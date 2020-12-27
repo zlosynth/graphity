@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Cycle;
 
 // TODO: Do not copy data, work with iterator only

@@ -459,13 +459,12 @@ where
     }
 
     fn topologically_sorted_nodes(&self) -> Result<Vec<SignalNodeIndex<NI>>, sort::Cycle> {
-        let nodes: HashSet<_> = self.graph.nodes.keys().copied().collect();
-        let edges: HashSet<(_, _)> = self
+        let nodes = self.graph.nodes.keys().copied();
+        let edges = self
             .graph
             .edges
             .iter()
-            .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()))
-            .collect();
+            .map(|(producer, consumer)| (producer.node_index(), consumer.node_index()));
         sort::topological_sort(nodes, edges)
     }
 
@@ -522,14 +521,14 @@ mod tests {
     struct Number(Payload);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    enum NumberInput {}
+    enum NumberConsumer {}
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct NumberOutput;
+    struct NumberProducer;
 
     impl Node<Payload> for Number {
-        type Consumer = NumberInput;
-        type Producer = NumberOutput;
+        type Consumer = NumberConsumer;
+        type Producer = NumberProducer;
 
         fn read(&self, _producer: Self::Producer) -> Payload {
             self.0
@@ -542,14 +541,14 @@ mod tests {
         }
     }
 
-    impl From<NumberInput> for TestConsumer {
-        fn from(number: NumberInput) -> Self {
+    impl From<NumberConsumer> for TestConsumer {
+        fn from(number: NumberConsumer) -> Self {
             TestConsumer::Number(number)
         }
     }
 
-    impl From<NumberOutput> for TestProducer {
-        fn from(number: NumberOutput) -> Self {
+    impl From<NumberProducer> for TestProducer {
+        fn from(number: NumberProducer) -> Self {
             TestProducer::Number(number)
         }
     }
@@ -562,17 +561,17 @@ mod tests {
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    enum PlusInput {
+    enum PlusConsumer {
         In1,
         In2,
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct PlusOutput;
+    struct PlusProducer;
 
     impl Node<Payload> for Plus {
-        type Consumer = PlusInput;
-        type Producer = PlusOutput;
+        type Consumer = PlusConsumer;
+        type Producer = PlusProducer;
 
         fn tick(&mut self) {
             self.output = self.input1 + self.input2;
@@ -596,14 +595,14 @@ mod tests {
         }
     }
 
-    impl From<PlusInput> for TestConsumer {
-        fn from(plus: PlusInput) -> Self {
+    impl From<PlusConsumer> for TestConsumer {
+        fn from(plus: PlusConsumer) -> Self {
             TestConsumer::Plus(plus)
         }
     }
 
-    impl From<PlusOutput> for TestProducer {
-        fn from(plus: PlusOutput) -> Self {
+    impl From<PlusProducer> for TestProducer {
+        fn from(plus: PlusProducer) -> Self {
             TestProducer::Plus(plus)
         }
     }
@@ -612,14 +611,14 @@ mod tests {
     struct Recorder(Payload);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct RecorderInput;
+    struct RecorderConsumer;
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct RecorderOutput;
+    struct RecorderProducer;
 
     impl Node<Payload> for Recorder {
-        type Consumer = RecorderInput;
-        type Producer = RecorderOutput;
+        type Consumer = RecorderConsumer;
+        type Producer = RecorderProducer;
 
         fn read(&self, _producer: Self::Producer) -> Payload {
             self.0
@@ -636,14 +635,14 @@ mod tests {
         }
     }
 
-    impl From<RecorderInput> for TestConsumer {
-        fn from(recorder: RecorderInput) -> Self {
+    impl From<RecorderConsumer> for TestConsumer {
+        fn from(recorder: RecorderConsumer) -> Self {
             TestConsumer::Recorder(recorder)
         }
     }
 
-    impl From<RecorderOutput> for TestProducer {
-        fn from(recorder: RecorderOutput) -> Self {
+    impl From<RecorderProducer> for TestProducer {
+        fn from(recorder: RecorderProducer) -> Self {
             TestProducer::Recorder(recorder.into())
         }
     }
@@ -694,15 +693,15 @@ mod tests {
             match self {
                 Self::Number(number) => match producer {
                     Self::Producer::Number(producer) => number.read(producer),
-                    _ => panic!("Bad bad, not good"),
+                    _ => panic!("Node does not offer such producer"),
                 },
                 Self::Plus(plus) => match producer {
                     Self::Producer::Plus(producer) => plus.read(producer),
-                    _ => panic!("Bad bad, not good"),
+                    _ => panic!("Node does not offer such producer"),
                 },
                 Self::Recorder(recorder) => match producer {
                     Self::Producer::Recorder(producer) => recorder.read(producer),
-                    _ => panic!("Bad bad, not good"),
+                    _ => panic!("Node does not offer such producer"),
                 },
             }
         }
@@ -713,14 +712,14 @@ mod tests {
         {
             let consumer = consumer.into();
             match self {
-                Self::Number(_) => panic!("Bad bad, not good"),
+                Self::Number(_) => panic!("Node does not offer such consumer"),
                 Self::Plus(plus) => match consumer {
                     Self::Consumer::Plus(consumer) => plus.write(consumer.into(), input),
-                    _ => panic!("Bad bad, not good"),
+                    _ => panic!("Node does not offer such consumer"),
                 },
                 Self::Recorder(recorder) => match consumer {
                     Self::Consumer::Recorder(consumer) => recorder.write(consumer.into(), input),
-                    _ => panic!("Bad bad, not good"),
+                    _ => panic!("Node does not offer such consumer"),
                 },
             }
         }
@@ -730,8 +729,9 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct TestNodeIndex {
+        // TODO: Rename all XClass to XNodeClass
+        class: TestNodeClass,
         index: usize,
-        // TODO: Keep the Node class too, so we can verify that the consumer belongs to it
     }
 
     impl NodeIndex for TestNodeIndex {
@@ -741,30 +741,58 @@ mod tests {
         type Producer = TestProducer;
         type ProducerIndex = TestProducerIndex;
 
-        fn new(_class: TestNodeClass, index: usize) -> Self {
-            Self { index }
+        fn new(class: TestNodeClass, index: usize) -> Self {
+            Self { class, index }
         }
 
-        fn consumer<IntoC>(&self, consumer: IntoC) -> TestConsumerIndex
+        fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
         where
             IntoC: Into<TestConsumer>,
         {
-            CommonConsumerIndex::new(*self, consumer.into())
+            let consumer = consumer.into();
+            match self.class {
+                Self::Class::Number => match consumer {
+                    Self::Consumer::Number(_) => Self::ConsumerIndex::new(*self, consumer.into()),
+                    _ => panic!("Node does not offer such consumer"),
+                },
+                Self::Class::Plus => match consumer {
+                    Self::Consumer::Plus(_) => Self::ConsumerIndex::new(*self, consumer.into()),
+                    _ => panic!("Node does not offer such consumer"),
+                },
+                Self::Class::Recorder => match consumer {
+                    Self::Consumer::Recorder(_) => Self::ConsumerIndex::new(*self, consumer.into()),
+                    _ => panic!("Node does not offer such consumer"),
+                },
+            }
         }
 
-        fn producer<IntoP>(&self, producer: IntoP) -> TestProducerIndex
+        fn producer<IntoP>(&self, producer: IntoP) -> Self::ProducerIndex
         where
             IntoP: Into<TestProducer>,
         {
-            CommonProducerIndex::new(*self, producer.into())
+            let producer = producer.into();
+            match self.class {
+                Self::Class::Number => match producer {
+                    Self::Producer::Number(_) => Self::ProducerIndex::new(*self, producer.into()),
+                    _ => panic!("Node does not offer such producer"),
+                },
+                Self::Class::Plus => match producer {
+                    Self::Producer::Plus(_) => Self::ProducerIndex::new(*self, producer.into()),
+                    _ => panic!("Node does not offer such producer"),
+                },
+                Self::Class::Recorder => match producer {
+                    Self::Producer::Recorder(_) => Self::ProducerIndex::new(*self, producer.into()),
+                    _ => panic!("Node does not offer such producer"),
+                },
+            }
         }
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum TestConsumer {
-        Number(NumberInput),
-        Plus(PlusInput),
-        Recorder(RecorderInput),
+        Number(NumberConsumer),
+        Plus(PlusConsumer),
+        Recorder(RecorderConsumer),
     }
 
     impl ExternalConsumer for TestConsumer {}
@@ -773,9 +801,9 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     enum TestProducer {
-        Number(NumberOutput),
-        Plus(PlusOutput),
-        Recorder(RecorderOutput),
+        Number(NumberProducer),
+        Plus(PlusProducer),
+        Recorder(RecorderProducer),
     }
 
     impl ExternalProducer for TestProducer {}
@@ -788,26 +816,26 @@ mod tests {
     #[test]
     fn write_tick_read_internal_signal_node() {
         let (source, sink) = feedback::new_feedback_pair();
-        let mut source: SignalNode<TestNode> = SignalNode::Internal(source.into());
-        let mut sink: SignalNode<TestNode> = SignalNode::Internal(sink.into());
+        let mut source: SignalNode<TestNode> = source.into();
+        let mut sink: SignalNode<TestNode> = sink.into();
 
-        source.write(SignalConsumer::Internal(FeedbackSourceConsumer.into()), 10);
+        source.write(FeedbackSourceConsumer, 10);
         source.tick();
         sink.tick();
-        assert_eq!(
-            sink.read(SignalProducer::Internal(FeedbackSinkProducer.into())),
-            10
-        );
+        assert_eq!(sink.read(FeedbackSinkProducer), 10);
     }
 
     #[test]
     fn write_tick_read_registered_signal_node() {
         let mut node: SignalNode<TestNode> = SignalNode::Registered(Plus::default().into());
 
-        node.write(SignalConsumer::Registered(PlusInput::In1.into()), 10);
-        node.write(SignalConsumer::Registered(PlusInput::In2.into()), 20);
+        node.write(SignalConsumer::Registered(PlusConsumer::In1.into()), 10);
+        node.write(SignalConsumer::Registered(PlusConsumer::In2.into()), 20);
         node.tick();
-        assert_eq!(node.read(SignalProducer::Registered(PlusOutput.into())), 30);
+        assert_eq!(
+            node.read(SignalProducer::Registered(PlusProducer.into())),
+            30
+        );
     }
 
     // Simple tree:
@@ -826,12 +854,21 @@ mod tests {
         let two = graph.add_node(Number(2));
         let plus = graph.add_node(Plus::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            two.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder.consumer(RecorderConsumer),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder).read(RecorderProducer), 3);
     }
 
     // Graph with 2 end consumers:
@@ -851,14 +888,26 @@ mod tests {
         let plus = graph.add_node(Plus::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder1.consumer(RecorderInput));
-        graph.add_edge(plus.producer(PlusOutput), recorder2.consumer(RecorderInput));
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            two.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder1.consumer(RecorderConsumer),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder2.consumer(RecorderConsumer),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder1).read(RecorderOutput), 3);
-        assert_eq!(graph.node(&recorder2).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder1).read(RecorderProducer), 3);
+        assert_eq!(graph.node(&recorder2).read(RecorderProducer), 3);
     }
 
     // Graph with a loop:
@@ -876,14 +925,23 @@ mod tests {
         let one = graph.add_node(Number(1));
         let plus = graph.add_node(Plus::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(plus.producer(PlusOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder.consumer(RecorderConsumer),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderOutput), 1);
+        assert_eq!(graph.node(&recorder).read(RecorderProducer), 1);
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderOutput), 2);
+        assert_eq!(graph.node(&recorder).read(RecorderProducer), 2);
     }
 
     // TODO: Test that feedback is considered an edge
