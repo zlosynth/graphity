@@ -7,7 +7,7 @@ use crate::feedback::{
 };
 use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
 use crate::internal::{
-    InternalClass, InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeIndex,
+    InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeClass, InternalNodeIndex,
     InternalProducer, InternalProducerIndex,
 };
 use crate::node::{NodeClass, NodeWrapper};
@@ -24,7 +24,7 @@ where
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SignalNodeClass<NC> {
     Registered(NC),
-    Internal(InternalClass),
+    Internal(InternalNodeClass),
 }
 
 impl<N> SignalNode<N>

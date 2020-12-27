@@ -227,7 +227,7 @@ mod tests {
         type Producer = TestProducer;
         type ProducerIndex = TestProducerIndex;
 
-        fn new(_class: TestClass, index: usize) -> Self {
+        fn new(_class: Self::Class, index: usize) -> Self {
             Self { index }
         }
 

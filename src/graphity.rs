@@ -16,19 +16,19 @@ macro_rules! graphity {
         }
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-        pub enum GeneratedClass {
+        pub enum GeneratedNodeClass {
             $(
             $node,
             )*
         }
 
         impl NodeClass for GeneratedNode {
-            type Class = GeneratedClass;
+            type Class = GeneratedNodeClass;
 
             fn class(&self) -> Self::Class {
                 match self {
                     $(
-                    Self::$node(_) => GeneratedClass::$node,
+                    Self::$node(_) => GeneratedNodeClass::$node,
                     )*
                 }
             }
@@ -84,18 +84,18 @@ macro_rules! graphity {
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash)]
         pub struct GeneratedNodeIndex {
-            class: GeneratedClass,
+            class: GeneratedNodeClass,
             index: usize,
         }
 
         impl NodeIndex for GeneratedNodeIndex {
-            type Class = GeneratedClass;
+            type Class = GeneratedNodeClass;
             type Consumer = GeneratedConsumer;
             type ConsumerIndex = GeneratedConsumerIndex;
             type Producer = GeneratedProducer;
             type ProducerIndex = GeneratedProducerIndex;
 
-            fn new(class: GeneratedClass, index: usize) -> Self {
+            fn new(class: GeneratedNodeClass, index: usize) -> Self {
                 Self { class, index }
             }
 

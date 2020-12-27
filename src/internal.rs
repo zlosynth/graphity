@@ -10,7 +10,7 @@ pub enum InternalNode<T> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum InternalClass {
+pub enum InternalNodeClass {
     FeedbackSource,
     FeedbackSink,
 }
@@ -26,7 +26,7 @@ pub enum InternalProducer {
 }
 
 impl<T> NodeClass for InternalNode<T> {
-    type Class = InternalClass;
+    type Class = InternalNodeClass;
 
     fn class(&self) -> Self::Class {
         match self {
@@ -71,7 +71,7 @@ where
 
 #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
 pub struct InternalNodeIndex {
-    class: InternalClass,
+    class: InternalNodeClass,
     index: usize,
 }
 
@@ -79,7 +79,7 @@ pub type InternalConsumerIndex = CommonConsumerIndex<InternalNodeIndex>;
 pub type InternalProducerIndex = CommonProducerIndex<InternalNodeIndex>;
 
 impl NodeIndex for InternalNodeIndex {
-    type Class = InternalClass;
+    type Class = InternalNodeClass;
     type Consumer = InternalConsumer;
     type ConsumerIndex = InternalConsumerIndex;
     type Producer = InternalProducer;
@@ -156,8 +156,8 @@ mod tests {
 
     #[test]
     fn initialize_node_index() {
-        let source = InternalNodeIndex::new(InternalClass::FeedbackSource, 1);
-        let sink = InternalNodeIndex::new(InternalClass::FeedbackSink, 0);
+        let source = InternalNodeIndex::new(InternalNodeClass::FeedbackSource, 1);
+        let sink = InternalNodeIndex::new(InternalNodeClass::FeedbackSink, 0);
 
         let _source_consumer =
             source.consumer(InternalConsumer::FeedbackSource(FeedbackSourceConsumer));
