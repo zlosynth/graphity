@@ -203,42 +203,6 @@ where
     InternalNode(InternalProducer),
 }
 
-impl<N> From<FeedbackSource<N::Payload>> for SignalNode<N>
-where
-    N: NodeWrapper,
-{
-    fn from(feedback_source: FeedbackSource<N::Payload>) -> Self {
-        Self::InternalNode(InternalNode::FeedbackSource(feedback_source))
-    }
-}
-
-impl<N> From<FeedbackSink<N::Payload>> for SignalNode<N>
-where
-    N: NodeWrapper,
-{
-    fn from(feedback_sink: FeedbackSink<N::Payload>) -> Self {
-        Self::InternalNode(InternalNode::FeedbackSink(feedback_sink))
-    }
-}
-
-impl<C> From<FeedbackSourceConsumer> for SignalNodeConsumer<C>
-where
-    C: Hash + Copy,
-{
-    fn from(feedback_source: FeedbackSourceConsumer) -> Self {
-        Self::InternalNode(InternalConsumer::FeedbackSource(feedback_source))
-    }
-}
-
-impl<P> From<FeedbackSinkProducer> for SignalNodeProducer<P>
-where
-    P: Hash + Copy,
-{
-    fn from(feedback_sink: FeedbackSinkProducer) -> Self {
-        Self::InternalNode(InternalProducer::FeedbackSink(feedback_sink))
-    }
-}
-
 impl<N> NodeClass for SignalNode<N>
 where
     N: NodeClass + NodeWrapper,
@@ -350,7 +314,7 @@ where
 
     // TODO: Define public and private. Private one would be accepting Internal N
     // public would return public node index too
-    pub fn add_node<IntoN>(&mut self, node: IntoN) -> SignalNodeIndex<NI>
+    pub fn add_signal_node<IntoN>(&mut self, node: IntoN) -> SignalNodeIndex<NI>
     where
         IntoN: Into<SignalNode<N>>,
     {
@@ -359,20 +323,42 @@ where
         index
     }
 
-    pub fn remove_node(&mut self, node_index: SignalNodeIndex<NI>) {
+    pub fn add_node<IntoN>(&mut self, node: IntoN) -> NI
+    where
+        IntoN: Into<N>,
+    {
+        match self.add_signal_node(SignalNode::RegisteredNode(node.into())) {
+            SignalNodeIndex::RegisteredNode(node_index) => node_index,
+            _ => unreachable!(),
+        }
+    }
+
+    // TODO: Private
+    pub fn remove_signal_node(&mut self, node_index: SignalNodeIndex<NI>) {
         self.graph.remove_node(node_index);
         self.update_cache();
     }
 
-    pub fn node(&self, node_index: &SignalNodeIndex<NI>) -> &SignalNode<N> {
+    pub fn remove_node(&mut self, node_index: NI) {
+        self.remove_signal_node(SignalNodeIndex::RegisteredNode(node_index));
+    }
+
+    pub fn signal_node(&self, node_index: &SignalNodeIndex<NI>) -> &SignalNode<N> {
         self.graph.node(node_index)
     }
 
-    pub fn node_mut(&mut self, node_index: &SignalNodeIndex<NI>) -> &mut SignalNode<N> {
-        self.graph.node_mut(node_index)
+    pub fn node(&self, node_index: &NI) -> &N {
+        match self.signal_node(&SignalNodeIndex::RegisteredNode(*node_index)) {
+            SignalNode::RegisteredNode(node) => node,
+            _ => unreachable!(),
+        }
     }
 
-    pub fn add_edge(
+    // pub fn node_mut(&mut self, node_index: &SignalNodeIndex<NI>) -> &mut SignalNode<N> {
+    //     self.graph.node_mut(node_index)
+    // }
+
+    pub fn add_signal_edge(
         &mut self,
         producer: SignalNodeProducerIndex<PI>,
         consumer: SignalNodeConsumerIndex<CI>,
@@ -396,15 +382,30 @@ where
             let (feedback_source, feedback_sink) = feedback::new_feedback_pair::<N::Payload>();
             let feedback_source = self.graph.add_node(feedback_source);
             let feedback_sink = self.graph.add_node(feedback_sink);
-            self.graph
-                .add_edge(producer, feedback_source.consumer(FeedbackSourceConsumer));
-            self.graph
-                .add_edge(feedback_sink.producer(FeedbackSinkProducer), consumer);
+            self.graph.add_edge(
+                producer,
+                feedback_source.consumer(SignalNodeConsumer::InternalNode(
+                    FeedbackSourceConsumer.into(),
+                )),
+            );
+            self.graph.add_edge(
+                feedback_sink.producer(SignalNodeProducer::InternalNode(
+                    FeedbackSinkProducer.into(),
+                )),
+                consumer,
+            );
             self.feedback_edges
                 .insert((producer, consumer), (feedback_source, feedback_sink));
         }
 
         self.update_cache();
+    }
+
+    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
+        self.add_signal_edge(
+            SignalNodeProducerIndex::RegisteredNode(producer),
+            SignalNodeConsumerIndex::RegisteredNode(consumer),
+        );
     }
 
     pub fn remove_edge(
@@ -459,6 +460,8 @@ where
         self.update_cache();
     }
 
+    // TODO: Impl public remove
+
     pub fn has_edge(
         &mut self,
         producer: SignalNodeProducerIndex<PI>,
@@ -485,6 +488,8 @@ where
         self.sorted_nodes = sorted_nodes;
     }
 
+    // TODO: Impl public has edge
+
     pub fn tick(&mut self) {
         // TODO: Define a function on graph that would allow us to iterate all node pairs
         // TODO: Make this more efficient
@@ -508,6 +513,42 @@ where
                 destination.write(consumer, output);
             }
         }
+    }
+}
+
+impl<N> From<FeedbackSource<N::Payload>> for SignalNode<N>
+where
+    N: NodeWrapper,
+{
+    fn from(feedback_source: FeedbackSource<N::Payload>) -> Self {
+        Self::InternalNode(InternalNode::FeedbackSource(feedback_source))
+    }
+}
+
+impl<N> From<FeedbackSink<N::Payload>> for SignalNode<N>
+where
+    N: NodeWrapper,
+{
+    fn from(feedback_sink: FeedbackSink<N::Payload>) -> Self {
+        Self::InternalNode(InternalNode::FeedbackSink(feedback_sink))
+    }
+}
+
+impl<C> From<FeedbackSourceConsumer> for SignalNodeConsumer<C>
+where
+    C: Hash + Copy,
+{
+    fn from(feedback_source: FeedbackSourceConsumer) -> Self {
+        Self::InternalNode(InternalConsumer::FeedbackSource(feedback_source))
+    }
+}
+
+impl<P> From<FeedbackSinkProducer> for SignalNodeProducer<P>
+where
+    P: Hash + Copy,
+{
+    fn from(feedback_sink: FeedbackSinkProducer) -> Self {
+        Self::InternalNode(InternalProducer::FeedbackSink(feedback_sink))
     }
 }
 
@@ -537,21 +578,21 @@ mod tests {
         }
     }
 
-    impl From<Number> for SignalNode<TestNode> {
+    impl From<Number> for TestNode {
         fn from(number: Number) -> Self {
-            Self::RegisteredNode(TestNode::Number(number))
+            TestNode::Number(number)
         }
     }
 
-    impl From<NumberInput> for SignalNodeConsumer<TestConsumer> {
+    impl From<NumberInput> for TestConsumer {
         fn from(number: NumberInput) -> Self {
-            Self::RegisteredNode(TestConsumer::Number(number))
+            TestConsumer::Number(number)
         }
     }
 
-    impl From<NumberOutput> for SignalNodeProducer<TestProducer> {
+    impl From<NumberOutput> for TestProducer {
         fn from(number: NumberOutput) -> Self {
-            Self::RegisteredNode(TestProducer::Number(number))
+            TestProducer::Number(number)
         }
     }
 
@@ -591,21 +632,21 @@ mod tests {
         }
     }
 
-    impl From<Plus> for SignalNode<TestNode> {
+    impl From<Plus> for TestNode {
         fn from(plus: Plus) -> Self {
-            Self::RegisteredNode(TestNode::Plus(plus))
+            TestNode::Plus(plus)
         }
     }
 
-    impl From<PlusInput> for SignalNodeConsumer<TestConsumer> {
+    impl From<PlusInput> for TestConsumer {
         fn from(plus: PlusInput) -> Self {
-            Self::RegisteredNode(TestConsumer::Plus(plus))
+            TestConsumer::Plus(plus)
         }
     }
 
-    impl From<PlusOutput> for SignalNodeProducer<TestProducer> {
+    impl From<PlusOutput> for TestProducer {
         fn from(plus: PlusOutput) -> Self {
-            Self::RegisteredNode(TestProducer::Plus(plus))
+            TestProducer::Plus(plus)
         }
     }
 
@@ -631,21 +672,21 @@ mod tests {
         }
     }
 
-    impl From<Recorder> for SignalNode<TestNode> {
+    impl From<Recorder> for TestNode {
         fn from(recorder: Recorder) -> Self {
-            Self::RegisteredNode(TestNode::Recorder(recorder))
+            TestNode::Recorder(recorder)
         }
     }
 
-    impl From<RecorderInput> for SignalNodeConsumer<TestConsumer> {
+    impl From<RecorderInput> for TestConsumer {
         fn from(recorder: RecorderInput) -> Self {
-            Self::RegisteredNode(TestConsumer::Recorder(recorder))
+            TestConsumer::Recorder(recorder)
         }
     }
 
-    impl From<RecorderOutput> for SignalNodeProducer<TestProducer> {
+    impl From<RecorderOutput> for TestProducer {
         fn from(recorder: RecorderOutput) -> Self {
-            Self::RegisteredNode(TestProducer::Recorder(recorder.into()))
+            TestProducer::Recorder(recorder.into())
         }
     }
 
@@ -788,37 +829,42 @@ mod tests {
         SignalGraph<TestNode, TestNodeIndex, TestConsumerIndex, TestProducerIndex>;
 
     #[test]
-    fn convert_internal_node_to_signal_node() {
-        let (source, _sink) = feedback::new_feedback_pair();
-
-        let _node: SignalNode<TestNode> = source.into();
-    }
-
-    #[test]
-    fn convert_registered_node_to_signal_node() {
-        let _node: SignalNode<TestNode> = Number(10).into();
-    }
-
-    #[test]
     fn write_tick_read_internal_signal_node() {
         let (source, sink) = feedback::new_feedback_pair();
-        let mut source: SignalNode<TestNode> = source.into();
-        let mut sink: SignalNode<TestNode> = sink.into();
+        let mut source: SignalNode<TestNode> = SignalNode::InternalNode(source.into());
+        let mut sink: SignalNode<TestNode> = SignalNode::InternalNode(sink.into());
 
-        source.write(FeedbackSourceConsumer, 10);
+        source.write(
+            SignalNodeConsumer::InternalNode(FeedbackSourceConsumer.into()),
+            10,
+        );
         source.tick();
         sink.tick();
-        assert_eq!(sink.read(FeedbackSinkProducer), 10);
+        assert_eq!(
+            sink.read(SignalNodeProducer::InternalNode(
+                FeedbackSinkProducer.into()
+            )),
+            10
+        );
     }
 
     #[test]
     fn write_tick_read_registered_signal_node() {
-        let mut node: SignalNode<TestNode> = Plus::default().into();
+        let mut node: SignalNode<TestNode> = SignalNode::RegisteredNode(Plus::default().into());
 
-        node.write(PlusInput::In1, 10);
-        node.write(PlusInput::In2, 20);
+        node.write(
+            SignalNodeConsumer::RegisteredNode(PlusInput::In1.into()),
+            10,
+        );
+        node.write(
+            SignalNodeConsumer::RegisteredNode(PlusInput::In2.into()),
+            20,
+        );
         node.tick();
-        assert_eq!(node.read(PlusOutput), 30);
+        assert_eq!(
+            node.read(SignalNodeProducer::RegisteredNode(PlusOutput.into())),
+            30
+        );
     }
 
     // Simple tree:
