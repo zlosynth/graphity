@@ -116,30 +116,6 @@ impl NodeIndex for InternalNodeIndex {
     }
 }
 
-impl<T> From<FeedbackSource<T>> for InternalNode<T> {
-    fn from(feedback_source: FeedbackSource<T>) -> Self {
-        InternalNode::FeedbackSource(feedback_source)
-    }
-}
-
-impl<T> From<FeedbackSink<T>> for InternalNode<T> {
-    fn from(feedback_sink: FeedbackSink<T>) -> Self {
-        InternalNode::FeedbackSink(feedback_sink)
-    }
-}
-
-impl From<FeedbackSourceConsumer> for InternalConsumer {
-    fn from(feedback_source: FeedbackSourceConsumer) -> Self {
-        InternalConsumer::FeedbackSource(feedback_source)
-    }
-}
-
-impl From<FeedbackSinkProducer> for InternalProducer {
-    fn from(feedback_sink: FeedbackSinkProducer) -> Self {
-        InternalProducer::FeedbackSink(feedback_sink)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +152,15 @@ mod tests {
             sink.read(InternalProducer::FeedbackSink(FeedbackSinkProducer)),
             [10, 20]
         );
+    }
+
+    #[test]
+    fn initialize_node_index() {
+        let source = InternalNodeIndex::new(InternalClass::FeedbackSource, 1);
+        let sink = InternalNodeIndex::new(InternalClass::FeedbackSink, 0);
+
+        let _source_consumer =
+            source.consumer(InternalConsumer::FeedbackSource(FeedbackSourceConsumer));
+        let _sink_producer = sink.producer(InternalProducer::FeedbackSink(FeedbackSinkProducer));
     }
 }

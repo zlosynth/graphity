@@ -1,4 +1,5 @@
 // TODO: This will contrain only documentation and reexports
+// TODO: Rename all XClass to XNodeClass
 // TODO: INtegrate criterion https://crates.io/crates/criterion and test graph operations and ticks
 // ---- adding ton of nodes
 // ---- adding edges between nodes

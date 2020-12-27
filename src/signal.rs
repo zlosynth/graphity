@@ -343,12 +343,12 @@ where
     }
 
     pub fn add_edge(&mut self, producer: PI, consumer: CI) {
-        let producer = SignalProducerIndex::Registered(producer);
-        let consumer = SignalConsumerIndex::Registered(consumer);
-
         if self.has_edge(producer, consumer) {
             return;
         }
+
+        let producer = SignalProducerIndex::Registered(producer);
+        let consumer = SignalConsumerIndex::Registered(consumer);
 
         self.graph.add_edge(producer, consumer);
 
@@ -405,30 +405,32 @@ where
     }
 
     fn drop_redundant_feedbacks(&mut self) {
-        let mut redundant_edges = HashSet::new();
+        let edges = self.feedback_edges.clone();
 
-        for ((producer, consumer), (source, sink)) in self.feedback_edges.iter() {
+        for ((producer, consumer), (source, sink)) in edges.iter() {
+            let source_consumer = source.consumer(FeedbackSourceConsumer);
+            let sink_producer = sink.producer(FeedbackSinkProducer);
+
+            self.graph.remove_edge(*producer, source_consumer);
+            self.graph.remove_edge(sink_producer, *consumer);
             self.graph.add_edge(*producer, *consumer);
 
             if self.has_cycles() {
                 self.graph.remove_edge(*producer, *consumer);
+                self.graph.add_edge(*producer, source_consumer);
+                self.graph.add_edge(sink_producer, *consumer);
             } else {
                 self.graph.remove_node(*source);
                 self.graph.remove_node(*sink);
-                redundant_edges.insert((*producer, *consumer));
+                self.feedback_edges.remove(&(*producer, *consumer));
             }
-        }
-
-        for edge in redundant_edges.iter() {
-            self.feedback_edges.remove(edge);
         }
     }
 
-    pub fn has_edge(
-        &mut self,
-        producer: SignalProducerIndex<PI>,
-        consumer: SignalConsumerIndex<CI>,
-    ) -> bool {
+    pub fn has_edge(&mut self, producer: PI, consumer: CI) -> bool {
+        let producer = SignalProducerIndex::Registered(producer);
+        let consumer = SignalConsumerIndex::Registered(consumer);
+
         self.graph.has_edge(producer, consumer)
             || self.feedback_edges.contains_key(&(producer, consumer))
     }
@@ -538,12 +540,6 @@ mod tests {
     impl From<Number> for TestNode {
         fn from(number: Number) -> Self {
             TestNode::Number(number)
-        }
-    }
-
-    impl From<NumberConsumer> for TestConsumer {
-        fn from(number: NumberConsumer) -> Self {
-            TestConsumer::Number(number)
         }
     }
 
@@ -729,7 +725,6 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     struct TestNodeIndex {
-        // TODO: Rename all XClass to XNodeClass
         class: TestNodeClass,
         index: usize,
     }
@@ -751,10 +746,7 @@ mod tests {
         {
             let consumer = consumer.into();
             match self.class {
-                Self::Class::Number => match consumer {
-                    Self::Consumer::Number(_) => Self::ConsumerIndex::new(*self, consumer.into()),
-                    _ => panic!("Node does not offer such consumer"),
-                },
+                Self::Class::Number => panic!("Node does not offer such consumer"),
                 Self::Class::Plus => match consumer {
                     Self::Consumer::Plus(_) => Self::ConsumerIndex::new(*self, consumer.into()),
                     _ => panic!("Node does not offer such consumer"),
@@ -838,7 +830,6 @@ mod tests {
         );
     }
 
-    // Simple tree:
     //
     //    [Rec]
     //      |
@@ -846,9 +837,8 @@ mod tests {
     //    /   \
     //  [1]   [2]
     //
-    // Should save 3 to the end consumer.
     #[test]
-    fn simple_tree() {
+    fn tick_in_simple_tree() {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Number(1));
         let two = graph.add_node(Number(2));
@@ -871,7 +861,6 @@ mod tests {
         assert_eq!(graph.node(&recorder).read(RecorderProducer), 3);
     }
 
-    // Graph with 2 end consumers:
     //
     //  [Rec]   [Rec]
     //      \   /
@@ -879,9 +868,8 @@ mod tests {
     //      /   \
     //    [1]   [2]
     //
-    // Should save 3 to both.
     #[test]
-    fn multiple_consumers() {
+    fn tick_with_multiple_consumers() {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Number(1));
         let two = graph.add_node(Number(2));
@@ -910,7 +898,6 @@ mod tests {
         assert_eq!(graph.node(&recorder2).read(RecorderProducer), 3);
     }
 
-    // Graph with a loop:
     //
     //  [Rec]    __
     //      \   /  |
@@ -918,9 +905,8 @@ mod tests {
     //      /   \__|
     //    [1]
     //
-    // Should feedback and keep increasing the recorded value.
     #[test]
-    fn internal_cycle() {
+    fn tick_with_internal_cycle() {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Number(1));
         let plus = graph.add_node(Plus::default());
@@ -944,8 +930,236 @@ mod tests {
         assert_eq!(graph.node(&recorder).read(RecorderProducer), 2);
     }
 
-    // TODO: Test that feedback is considered an edge
-    // TODO: Test that node removal drops edges
-    // TODO: Test all the feedback stuff
-    // TODO: Test that feedbacks are removed
+    //
+    //    [Rec]
+    //      |
+    //     [1]
+    //
+    #[test]
+    fn check_for_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        );
+
+        assert!(graph.has_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        ));
+    }
+
+    //
+    //    [Rec]
+    //      |
+    //     [1]
+    //
+    #[test]
+    fn remove_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        );
+
+        graph.remove_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        );
+
+        assert!(!graph.has_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        ));
+    }
+
+    //           __
+    //          /  |
+    //       [+]   V
+    //      /   \__|
+    //    [1]
+    //
+    #[test]
+    fn check_for_feedback_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let plus = graph.add_node(Plus::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+
+        assert!(graph.has_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        ));
+        assert!(!graph.feedback_edges.is_empty());
+    }
+
+    //           __
+    //          /  |
+    //       [+]   V
+    //      /   \__|
+    //    [1]
+    //
+    #[test]
+    fn remove_feedback_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let plus = graph.add_node(Plus::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+
+        graph.remove_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+
+        assert!(!graph.has_edge(
+            plus.producer(PlusProducer),
+            plus.consumer(PlusConsumer::In2),
+        ));
+        assert!(graph.feedback_edges.is_empty());
+    }
+
+    //           ___
+    //          /   |
+    //       [Rec]  |
+    // del ->  |    |
+    //       [Rec]  V
+    //         |    |
+    //        [+]   |
+    //       /   \__|
+    //      [1]
+    //
+    #[test]
+    fn remove_redundant_feedback_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let plus = graph.add_node(Plus::default());
+        let recorder1 = graph.add_node(Recorder::default());
+        let recorder2 = graph.add_node(Recorder::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder1.consumer(RecorderConsumer),
+        );
+        graph.add_edge(
+            recorder1.producer(RecorderProducer),
+            recorder2.consumer(RecorderConsumer),
+        );
+        graph.add_edge(
+            recorder2.producer(RecorderProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+
+        assert!(!graph.feedback_edges.is_empty());
+
+        graph.remove_edge(
+            recorder1.producer(RecorderProducer),
+            recorder2.consumer(RecorderConsumer),
+        );
+
+        assert!(graph.feedback_edges.is_empty());
+    }
+
+    //             ___
+    //            /   |
+    //         [Rec]  |
+    //           |    |
+    //         [Rec]  V
+    //           |    |
+    //          [+]   |
+    //  del -> /   \__|
+    //        [1]
+    //
+    #[test]
+    fn do_not_remove_needed_feedback_edge() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let plus = graph.add_node(Plus::default());
+        let recorder1 = graph.add_node(Recorder::default());
+        let recorder2 = graph.add_node(Recorder::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        graph.add_edge(
+            plus.producer(PlusProducer),
+            recorder1.consumer(RecorderConsumer),
+        );
+        graph.add_edge(
+            recorder1.producer(RecorderProducer),
+            recorder2.consumer(RecorderConsumer),
+        );
+        graph.add_edge(
+            recorder2.producer(RecorderProducer),
+            plus.consumer(PlusConsumer::In2),
+        );
+        let original_feedbacks = graph.feedback_edges.len();
+
+        graph.remove_edge(
+            one.producer(NumberProducer),
+            plus.consumer(PlusConsumer::In1),
+        );
+        assert_eq!(graph.feedback_edges.len(), original_feedbacks);
+    }
+
+    #[test]
+    fn get_node() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+
+        assert_eq!(graph.node(&one).read(NumberProducer), 1);
+    }
+
+    #[test]
+    fn get_mutable_node() {
+        let mut graph = TestSignalGraph::new();
+        let recorder = graph.add_node(Recorder::default());
+
+        graph.node_mut(&recorder).write(RecorderConsumer, 10);
+
+        assert_eq!(graph.node(&recorder).read(RecorderProducer), 10);
+    }
+
+    //
+    //    [Rec]
+    //      |
+    //     [1]
+    //
+    #[test]
+    fn remove_node() {
+        let mut graph = TestSignalGraph::new();
+        let one = graph.add_node(Number(1));
+        let recorder = graph.add_node(Recorder::default());
+        graph.add_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        );
+
+        graph.remove_node(recorder);
+
+        assert!(!graph.has_edge(
+            one.producer(NumberProducer),
+            recorder.consumer(RecorderConsumer),
+        ));
+    }
 }
