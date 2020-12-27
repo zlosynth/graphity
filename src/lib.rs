@@ -13,6 +13,7 @@
 // TODO: Expose public types here
 // TODO: Integrate coverage
 // TODO: Implement with no_std
+// TODO: Limit public types
 
 mod feedback;
 pub mod graph;
