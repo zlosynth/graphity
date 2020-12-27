@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use core::hash::Hash;
 
 pub trait NodeClass {
     type Class: Hash + Copy + Eq;

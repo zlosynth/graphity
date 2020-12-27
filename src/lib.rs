@@ -1,4 +1,3 @@
-// TODO: This will contrain only documentation and reexports
 // TODO: INtegrate criterion https://crates.io/crates/criterion and test graph operations and ticks
 // ---- adding ton of nodes
 // ---- adding edges between nodes
@@ -8,11 +7,12 @@
 // ---- test it with f16 and [f16; 64]
 // TODO: Document that this models signal flow, allows for feedback loops,
 // handling them with delay
-// TODO: Make reverting of feedbacks more effective by finding all the loops at once
-// TODO: Expose public types here
 // TODO: Integrate coverage
-// TODO: Implement with no_std
 // TODO: Limit public types
+
+#![no_std]
+
+extern crate alloc;
 
 mod feedback;
 pub mod graph;

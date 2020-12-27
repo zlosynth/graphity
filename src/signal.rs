@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-use std::convert::From;
-use std::hash::Hash;
+use alloc::vec::Vec;
+use core::convert::From;
+use core::hash::Hash;
+use hashbrown::HashMap;
 
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,

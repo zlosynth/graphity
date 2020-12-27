@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
+use core::hash::Hash;
+use hashbrown::{HashMap, HashSet};
 
 use crate::node::NodeClass;
 

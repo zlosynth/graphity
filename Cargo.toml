@@ -10,5 +10,8 @@ repository = "https://github.com/zlosynth/graphity"
 documentation = "https://docs.rs/graphity"
 readme = "README.md"
 
+[dependencies]
+hashbrown = "0.9"
+
 [dev-dependencies]
 graphity = { path = "." }

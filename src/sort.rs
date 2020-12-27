@@ -1,5 +1,7 @@
-use std::collections::{HashSet, VecDeque};
-use std::hash::Hash;
+use alloc::collections::VecDeque;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use hashbrown::HashSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cycle;
@@ -57,6 +59,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use alloc::vec;
 
     ///     [0]  [1]
     ///     / \       |
