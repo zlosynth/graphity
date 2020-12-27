@@ -9,26 +9,6 @@ macro_rules! graphity {
         };
         use graphity::signal::SignalGraph;
 
-        $(
-        impl From<$node> for GeneratedNode {
-            fn from(node: $node) -> Self {
-                GeneratedNode::$node(node)
-            }
-        }
-
-        impl From<<$node as Node<$payload>>::Consumer> for GeneratedConsumer {
-            fn from(consumer: <$node as Node<$payload>>::Consumer) -> Self {
-                GeneratedConsumer::$node(consumer)
-            }
-        }
-
-        impl From<<$node as Node<$payload>>::Producer> for GeneratedProducer {
-            fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
-                GeneratedProducer::$node(producer)
-            }
-        }
-        )*
-
         pub enum GeneratedNode {
             $(
             $node($node),
@@ -174,6 +154,26 @@ macro_rules! graphity {
 
         pub type GeneratedProducerIndex = CommonProducerIndex<GeneratedNodeIndex>;
 
+        $(
+        impl From<$node> for GeneratedNode {
+            fn from(node: $node) -> Self {
+                GeneratedNode::$node(node)
+            }
+        }
+
+        impl From<<$node as Node<$payload>>::Consumer> for GeneratedConsumer {
+            fn from(consumer: <$node as Node<$payload>>::Consumer) -> Self {
+                GeneratedConsumer::$node(consumer)
+            }
+        }
+
+        impl From<<$node as Node<$payload>>::Producer> for GeneratedProducer {
+            fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
+                GeneratedProducer::$node(producer)
+            }
+        }
+        )*
+
         pub type $graph = SignalGraph<
             GeneratedNode,
             GeneratedNodeIndex,
@@ -185,8 +185,8 @@ macro_rules! graphity {
 
 #[cfg(test)]
 mod tests {
-    use graphity::node::{Node, NodeWrapper};
     use graphity::graph::NodeIndex;
+    use graphity::node::{Node, NodeWrapper};
 
     pub struct Number(i32);
 
@@ -278,8 +278,9 @@ mod tests {
             use super::{Number, Plus, Recorder};
             graphity!(Graph<i32>; Number, Plus, Recorder);
         }
+        use g::Graph;
 
-        let mut graph = g::Graph::new();
+        let mut graph = Graph::new();
         let one = graph.add_node(Number(1));
         let two = graph.add_node(Number(2));
         let plus = graph.add_node(Plus::default());

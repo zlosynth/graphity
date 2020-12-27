@@ -28,6 +28,15 @@ pub trait ConsumerIndex: Copy + Hash + Eq {
     fn consumer(&self) -> Self::Consumer;
 }
 
+pub trait ProducerIndex: Copy + Hash + Eq {
+    type NodeIndex: NodeIndex<Producer = Self::Producer>;
+    type Producer: Copy + Hash + Eq;
+
+    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self;
+    fn node_index(&self) -> Self::NodeIndex;
+    fn producer(&self) -> Self::Producer;
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct CommonConsumerIndex<NI>
 where
@@ -37,7 +46,6 @@ where
     consumer: NI::Consumer,
 }
 
-// TODO Consider dropping the default implementation and have it explicit per each
 impl<NI> ConsumerIndex for CommonConsumerIndex<NI>
 where
     NI: NodeIndex,
@@ -61,15 +69,6 @@ where
     }
 }
 
-pub trait ProducerIndex: Copy + Hash + Eq {
-    type NodeIndex: NodeIndex<Producer = Self::Producer>;
-    type Producer: Copy + Hash + Eq;
-
-    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self;
-    fn node_index(&self) -> Self::NodeIndex;
-    fn producer(&self) -> Self::Producer;
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct CommonProducerIndex<NI>
 where
@@ -79,7 +78,6 @@ where
     producer: NI::Producer,
 }
 
-// TODO Consider dropping the default implementation and have it explicit per each
 impl<NI> ProducerIndex for CommonProducerIndex<NI>
 where
     NI: NodeIndex,
