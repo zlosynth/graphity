@@ -1,3 +1,59 @@
+/// A macro generating custom implementation of a signal graph for given node
+/// types.
+///
+/// # Examples
+///
+/// The following code illustrates how would one generate code for a graph that
+/// could keep instances of `Generator` and `Echo` nodes:
+///
+/// ```
+/// # use graphity::Node;
+/// #
+/// # pub struct Generator;
+/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorConsumer {}
+/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorProducer {}
+/// # impl Node<i32> for Generator {
+/// #     type Consumer = GeneratorConsumer;
+/// #     type Producer = GeneratorProducer;
+/// # }
+/// #
+/// # pub struct Echo;
+/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoConsumer {}
+/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoProducer {}
+/// # impl Node<i32> for Echo {
+/// #     type Consumer = EchoConsumer;
+/// #     type Producer = EchoProducer;
+/// # }
+/// #
+/// # #[macro_use]
+/// # extern crate graphity;
+/// # fn main() {
+/// // pub struct Generator ...
+/// // pub struct Echo ...
+///
+/// mod g {
+///     use super::{Generator, Echo};
+///     graphity!(Graph<i32>; Generator, Echo);
+/// }
+/// # }
+/// ```
+///
+/// * `Generator` and `Echo` are types implementing the [Node
+///    trait](node/trait.Node.html).
+/// * `mod g` limits a scope in which will the macro operate, this is needed to
+///    avoid conflicts with the rest of the code.
+/// * `use super...` is needed to bring nodes into the scope of the macro.
+/// * `Graph` defines the name of the generated signal graph type.
+/// * `i32` dictates the payload type that will flow between nodes.
+///
+/// Once the macro generates the signal graph type, it can be instantiated:
+///
+/// ```ignore
+/// let graph = g::Graph::new();
+/// ```
+///
+/// For more details on how to use such graph, see the [`SignalGraph`
+/// documentation](file:///home/phoracek/code/zlosynth/graphity/target/doc/graphity/signal/struct.SignalGraph.html).
 #[macro_export]
 macro_rules! graphity {
     ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
