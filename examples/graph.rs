@@ -1,5 +1,3 @@
-use core::hash::Hash;
-
 #[macro_use]
 extern crate graphity;
 
