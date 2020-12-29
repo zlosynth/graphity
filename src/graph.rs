@@ -1,105 +1,7 @@
 use core::hash::Hash;
 use hashbrown::{HashMap, HashSet};
 
-use crate::node::NodeClass;
-
-pub trait NodeIndex: Copy + Hash + Eq {
-    type Class: Copy + Hash + Eq;
-    type Consumer: Copy + Hash + Eq;
-    type ConsumerIndex: ConsumerIndex<NodeIndex = Self, Consumer = Self::Consumer>;
-    type Producer: Copy + Hash + Eq;
-    type ProducerIndex: ProducerIndex<NodeIndex = Self, Producer = Self::Producer>;
-
-    fn new(class: Self::Class, index: usize) -> Self;
-    fn consumer<IntoC>(&self, consumer: IntoC) -> Self::ConsumerIndex
-    where
-        IntoC: Into<Self::Consumer>;
-    fn producer<IntoP>(&self, producer: IntoP) -> Self::ProducerIndex
-    where
-        IntoP: Into<Self::Producer>;
-}
-
-pub trait ConsumerIndex: Copy + Hash + Eq {
-    type NodeIndex: NodeIndex<Consumer = Self::Consumer>;
-    type Consumer: Copy + Hash + Eq;
-
-    fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self;
-    fn node_index(&self) -> Self::NodeIndex;
-    fn consumer(&self) -> Self::Consumer;
-}
-
-pub trait ProducerIndex: Copy + Hash + Eq {
-    type NodeIndex: NodeIndex<Producer = Self::Producer>;
-    type Producer: Copy + Hash + Eq;
-
-    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self;
-    fn node_index(&self) -> Self::NodeIndex;
-    fn producer(&self) -> Self::Producer;
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct CommonConsumerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    node_index: NI,
-    consumer: NI::Consumer,
-}
-
-impl<NI> ConsumerIndex for CommonConsumerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    type NodeIndex = NI;
-    type Consumer = NI::Consumer;
-
-    fn new(node_index: Self::NodeIndex, consumer: Self::Consumer) -> Self {
-        Self {
-            node_index,
-            consumer,
-        }
-    }
-
-    fn node_index(&self) -> Self::NodeIndex {
-        self.node_index
-    }
-
-    fn consumer(&self) -> Self::Consumer {
-        self.consumer
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct CommonProducerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    node_index: NI,
-    producer: NI::Producer,
-}
-
-impl<NI> ProducerIndex for CommonProducerIndex<NI>
-where
-    NI: NodeIndex,
-{
-    type NodeIndex = NI;
-    type Producer = NI::Producer;
-
-    fn new(node_index: Self::NodeIndex, producer: Self::Producer) -> Self {
-        Self {
-            node_index,
-            producer,
-        }
-    }
-
-    fn node_index(&self) -> Self::NodeIndex {
-        self.node_index
-    }
-
-    fn producer(&self) -> Self::Producer {
-        self.producer
-    }
-}
+use crate::node::{ConsumerIndex, NodeClass, NodeIndex, ProducerIndex};
 
 // Directed graph Each node is further divided into producers and consumers with
 // MAX 1 indegree for each consumer and arbitrary number of outdegrees for
@@ -184,6 +86,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::{CommonConsumerIndex, CommonProducerIndex};
 
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     struct TestNode(i32);
@@ -265,7 +168,7 @@ mod tests {
         let node_index = TestNodeIndex::new(TestClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
-        assert_eq!(consumer_index.node_index, node_index)
+        assert_eq!(consumer_index.node_index(), node_index)
     }
 
     #[test]
@@ -273,7 +176,7 @@ mod tests {
         let node_index = TestNodeIndex::new(TestClass, 0);
         let consumer_index = node_index.consumer(TestConsumer);
 
-        assert_eq!(consumer_index.consumer, TestConsumer)
+        assert_eq!(consumer_index.consumer(), TestConsumer)
     }
 
     #[test]
@@ -288,7 +191,7 @@ mod tests {
         let node_index = TestNodeIndex::new(TestClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
-        assert_eq!(producer_index.node_index, node_index)
+        assert_eq!(producer_index.node_index(), node_index)
     }
 
     #[test]
@@ -296,7 +199,7 @@ mod tests {
         let node_index = TestNodeIndex::new(TestClass, 0);
         let producer_index = node_index.producer(TestProducer);
 
-        assert_eq!(producer_index.producer, TestProducer)
+        assert_eq!(producer_index.producer(), TestProducer)
     }
 
     #[test]

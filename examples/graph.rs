@@ -1,10 +1,9 @@
-use std::hash::Hash;
+use core::hash::Hash;
 
 #[macro_use]
 extern crate graphity;
 
-use graphity::graph::NodeIndex;
-use graphity::node::Node;
+use graphity::{Node, NodeIndex};
 
 mod g {
     use super::{Number, Plus, Printer};

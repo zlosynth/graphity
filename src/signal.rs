@@ -6,15 +6,15 @@ use hashbrown::HashMap;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::{ConsumerIndex, Graph, NodeIndex, ProducerIndex};
+use crate::graph::Graph;
 use crate::internal::{
     InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeClass, InternalNodeIndex,
     InternalProducer, InternalProducerIndex,
 };
-use crate::node::{NodeClass, NodeWrapper};
+use crate::node::{ConsumerIndex, NodeClass, NodeIndex, NodeWrapper, ProducerIndex};
 use crate::sort;
 
-pub enum SignalNode<N>
+enum SignalNode<N>
 where
     N: NodeWrapper,
 {
@@ -23,7 +23,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SignalNodeClass<NC> {
+enum SignalNodeClass<NC> {
     Registered(NC),
     Internal(InternalNodeClass),
 }
@@ -112,7 +112,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SignalNodeIndex<NI> {
+enum SignalNodeIndex<NI> {
     Registered(NI),
     Internal(InternalNodeIndex),
 }
@@ -159,7 +159,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum SignalConsumer<C>
+enum SignalConsumer<C>
 where
     C: Copy + Hash,
 {
@@ -168,7 +168,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SignalConsumerIndex<CI>
+enum SignalConsumerIndex<CI>
 where
     CI: ConsumerIndex,
 {
@@ -222,7 +222,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum SignalProducer<P>
+enum SignalProducer<P>
 where
     P: Copy + Hash,
 {
@@ -231,7 +231,7 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SignalProducerIndex<CI>
+enum SignalProducerIndex<CI>
 where
     CI: ProducerIndex,
 {
@@ -516,8 +516,10 @@ where
 mod tests {
     use super::*;
     use crate::feedback::{self, FeedbackSinkProducer, FeedbackSourceConsumer};
-    use crate::graph::{CommonConsumerIndex, CommonProducerIndex};
-    use crate::node::{ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper};
+    use crate::node::{
+        CommonConsumerIndex, CommonProducerIndex, ExternalConsumer, ExternalNodeWrapper,
+        ExternalProducer, Node, NodeWrapper,
+    };
 
     type Payload = i32;
 

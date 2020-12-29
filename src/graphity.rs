@@ -1,11 +1,9 @@
 #[macro_export]
 macro_rules! graphity {
     ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
-        use graphity::graph::{
-            CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex
-        };
         use graphity::node::{
             ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper, NodeClass,
+            CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex
         };
         use graphity::signal::SignalGraph;
 
@@ -185,8 +183,7 @@ macro_rules! graphity {
 
 #[cfg(test)]
 mod tests {
-    use graphity::graph::NodeIndex;
-    use graphity::node::{Node, NodeWrapper};
+    use graphity::node::{Node, NodeIndex, NodeWrapper};
 
     pub struct Number(i32);
 

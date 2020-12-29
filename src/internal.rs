@@ -1,8 +1,8 @@
 use crate::feedback::{FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer};
-use crate::graph::{
-    CommonConsumerIndex, CommonProducerIndex, ConsumerIndex, NodeIndex, ProducerIndex,
+use crate::node::{
+    CommonConsumerIndex, CommonProducerIndex, ConsumerIndex, Node, NodeClass, NodeIndex,
+    NodeWrapper, ProducerIndex,
 };
-use crate::node::{Node, NodeClass, NodeWrapper};
 
 pub enum InternalNode<T> {
     FeedbackSource(FeedbackSource<T>),
