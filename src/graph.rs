@@ -3,9 +3,6 @@ use hashbrown::{HashMap, HashSet};
 
 use crate::node::{ConsumerIndex, NodeClass, NodeIndex, ProducerIndex};
 
-// Directed graph Each node is further divided into producers and consumers with
-// MAX 1 indegree for each consumer and arbitrary number of outdegrees for
-// producer all consumers of a node are connected to all producers of the node
 pub struct Graph<N, NI, CI, PI>
 where
     NI: Hash,
