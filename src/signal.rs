@@ -1,3 +1,6 @@
+//! Signal components wrap around the nodes provided by the user and internal
+//! nodes.
+
 use alloc::vec::Vec;
 use core::convert::From;
 use core::hash::Hash;
@@ -284,6 +287,23 @@ where
     }
 }
 
+/// A graph structure meant to model signal flow between registered nodes.
+///
+/// Signal graph can be populated with nodes, then producers and consumers of
+/// these nodes can be wired up together. It is intended to be used for signal
+/// modeling, where nodes are wired up through their producer and consumer pins,
+/// processing data, passing it through.
+///
+/// Each producer can be connected to any number of consumers. Every consumer
+/// must be fed by one producer at most.
+///
+/// When edges in the graph form a cycle, a feedback is introduced. That means
+/// that data passing through the cycle will be delayed by a single `tick` and
+/// only then fed to the consumer.
+///
+/// This structure is not meant to be used directly, instead, user should use
+/// the [`graphity`](../macro.graphity.html) macro to generate it from given
+/// nodes.
 #[allow(clippy::type_complexity)]
 pub struct SignalGraph<N, NI, CI, PI>
 where
@@ -309,6 +329,24 @@ where
     CI: ConsumerIndex<NodeIndex = NI, Consumer = NI::Consumer>,
     PI: ProducerIndex<NodeIndex = NI, Producer = NI::Producer>,
 {
+    /// Initialize a new empty graph.
+    ///
+    /// # Example
+    ///
+    /// Generate `SignalGraph` implementation using the `graphity` macro. Then
+    /// initialize it.
+    ///
+    /// ```ignore
+    /// // pub struct Generator ...
+    /// // pub struct Echo ...
+    ///
+    /// mod g {
+    ///     use super::{Generator, Echo};
+    ///     graphity!(Graph<i32>; Generator, Echo);
+    /// }
+    ///
+    /// let mut graph = g::Graph::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             graph: Graph::new(),
@@ -317,6 +355,15 @@ where
         }
     }
 
+    /// Add a node of the registered typo into the graph.
+    ///
+    /// The method then returns an index of the node. That can be later used to
+    /// access the node or any of its consumers/producers.
+    ///
+    /// ```ignore
+    /// let generator = graph.add_node(Generator(1));
+    /// let echo = graph.add_node(Echo::default());
+    /// ```
     pub fn add_node<IntoN>(&mut self, node: IntoN) -> NI
     where
         IntoN: Into<N>,
@@ -327,22 +374,72 @@ where
         index
     }
 
+    /// Remove a previously added node.
+    ///
+    /// Does nothing if the `node_index` does not match an existing node. It
+    /// will remove all inbound and outbound edges of this node.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.remove_node(generator);
+    /// ```
     pub fn remove_node(&mut self, node_index: NI) {
         let node_index = SignalNodeIndex::Registered(node_index);
         self.graph.remove_node(node_index);
         self.update_cache();
     }
 
+    /// Access a node stored in the graph.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the `node_index` references a non-existent node.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let node = graph.node(generator);
+    /// ```
     pub fn node(&self, node_index: &NI) -> &N {
         let node_index = SignalNodeIndex::Registered(*node_index);
         self.graph.node(&node_index).must_registered()
     }
 
+    /// Mutably access a node stored in the graph.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the `node_index` references a non-existent node.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut node = graph.node_mut(generator);
+    /// ```
     pub fn node_mut(&mut self, node_index: &NI) -> &mut N {
         let node_index = SignalNodeIndex::Registered(*node_index);
         self.graph.node_mut(&node_index).must_registered_mut()
     }
 
+    /// Add an edge connecting producer of one node to a consumer of another.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the consumer is already connected to a different producer.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.add_edge(
+    ///     generator.producer(GeneratorProducer),
+    ///     echo.consumer(EchoConsumer),
+    /// );
+    /// ```
+    ///
+    /// `generator` and `echo` are indices previously returned by `add_node`.
+    /// `GeneratorProducer` and `EchoConsumer` are types defined by the user and
+    /// bound to their respective nodes.
     pub fn add_edge(&mut self, producer: PI, consumer: CI) {
         if self.has_edge(producer, consumer) {
             return;
@@ -380,6 +477,18 @@ where
             .insert((producer, consumer), (source, sink));
     }
 
+    /// Remove the edge connecting the given producer and consumer.
+    ///
+    /// Does nothing if there is no such edge present.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.remove_edge(
+    ///     generator.producer(GeneratorProducer),
+    ///     echo.consumer(EchoConsumer),
+    /// );
+    /// ```
     pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
         let producer = SignalProducerIndex::Registered(producer);
         let consumer = SignalConsumerIndex::Registered(consumer);
@@ -428,6 +537,16 @@ where
         }
     }
 
+    /// Check whether the graph contains an edge connecting given producer and consumer.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.has_edge(
+    ///     generator.producer(GeneratorProducer),
+    ///     echo.consumer(EchoConsumer),
+    /// );
+    /// ```
     pub fn has_edge(&mut self, producer: PI, consumer: CI) -> bool {
         let producer = SignalProducerIndex::Registered(producer);
         let consumer = SignalConsumerIndex::Registered(consumer);
@@ -436,6 +555,22 @@ where
             || self.feedback_edges.contains_key(&(producer, consumer))
     }
 
+    /// Traverse the whole graph and tick all present nodes, passing data
+    /// through registered edges.
+    ///
+    /// A single tick here performs a single iteration through the whole graph.
+    /// It triggers tick of each node, gathers generated data from registered
+    /// producers, passes the data to connected consumers and continues with the
+    /// transition.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.tick();
+    /// // Echo: 1
+    /// graph.tick();
+    /// // Echo: 1
+    /// ```
     pub fn tick(&mut self) {
         for node_index in self.sorted_nodes.iter() {
             self.graph.nodes.get_mut(node_index).unwrap().tick();
