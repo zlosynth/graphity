@@ -1,11 +1,12 @@
 [package]
 name = "graphity"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["Petr Horáček <hrck@protonmail.com>"]
 edition = "2018"
-categories = ["no-std"]
+categories = ["no-std", "data-structures"]
+tags = ["graph", "data-structure", "flow"]
 license = "GPL-3.0-or-later"
-description = "Graph iterators."
+description = "Model signal flow between nodes within a directed graph."
 repository = "https://github.com/zlosynth/graphity"
 documentation = "https://docs.rs/graphity"
 readme = "README.md"

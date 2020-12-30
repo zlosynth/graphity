@@ -11,7 +11,11 @@ Documentation:
 * [Repository (github.com)](https://github.com/zlosynth/graphity)
 * [Crate (crates.io)](https://crates.io/crates/graphity)
 
-## Usage
+The library is compatible with `#[no_std]`, allowing for use in e.g.  embedded
+environments. However, note that it requires a global allocator with the `alloc`
+crate.
+
+# Usage
 
 Add the following to your `Cargo.toml`:
 
