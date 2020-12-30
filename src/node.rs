@@ -173,6 +173,12 @@ pub trait NodeWrapper: NodeClass {
 
     fn tick(&mut self) {}
 
+    /// Read data from the given producer.
+    ///
+    /// # Panics
+    ///
+    /// In case the given producer does not belong to this node type, this will
+    /// panic.
     #[allow(unused_variables)]
     fn read<IntoP>(&self, producer: IntoP) -> Self::Payload
     where
@@ -181,6 +187,12 @@ pub trait NodeWrapper: NodeClass {
         Self::Payload::default()
     }
 
+    /// Write data into the given consumer.
+    ///
+    /// # Panics
+    ///
+    /// In case the given consumer does not belong to this node type, this will
+    /// panic.
     #[allow(unused_variables)]
     fn write<IntoC>(&mut self, consumer: IntoC, _input: Self::Payload)
     where
