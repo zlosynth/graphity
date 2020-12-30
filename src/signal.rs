@@ -523,54 +523,54 @@ mod tests {
 
     type Payload = i32;
 
-    struct Number(Payload);
+    struct Generator(Payload);
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    enum NumberConsumer {}
+    enum GeneratorConsumer {}
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct NumberProducer;
+    struct GeneratorProducer;
 
-    impl Node<Payload> for Number {
-        type Consumer = NumberConsumer;
-        type Producer = NumberProducer;
+    impl Node<Payload> for Generator {
+        type Consumer = GeneratorConsumer;
+        type Producer = GeneratorProducer;
 
         fn read(&self, _producer: Self::Producer) -> Payload {
             self.0
         }
     }
 
-    impl From<Number> for TestNode {
-        fn from(number: Number) -> Self {
-            TestNode::Number(number)
+    impl From<Generator> for TestNode {
+        fn from(generator: Generator) -> Self {
+            TestNode::Generator(generator)
         }
     }
 
-    impl From<NumberProducer> for TestProducer {
-        fn from(number: NumberProducer) -> Self {
-            TestProducer::Number(number)
+    impl From<GeneratorProducer> for TestProducer {
+        fn from(generator: GeneratorProducer) -> Self {
+            TestProducer::Generator(generator)
         }
     }
 
     #[derive(Default)]
-    struct Plus {
+    struct Sum {
         input1: Payload,
         input2: Payload,
         output: Payload,
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    enum PlusConsumer {
+    enum SumConsumer {
         In1,
         In2,
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-    struct PlusProducer;
+    struct SumProducer;
 
-    impl Node<Payload> for Plus {
-        type Consumer = PlusConsumer;
-        type Producer = PlusProducer;
+    impl Node<Payload> for Sum {
+        type Consumer = SumConsumer;
+        type Producer = SumProducer;
 
         fn tick(&mut self) {
             self.output = self.input1 + self.input2;
@@ -588,21 +588,21 @@ mod tests {
         }
     }
 
-    impl From<Plus> for TestNode {
-        fn from(plus: Plus) -> Self {
-            TestNode::Plus(plus)
+    impl From<Sum> for TestNode {
+        fn from(sum: Sum) -> Self {
+            TestNode::Sum(sum)
         }
     }
 
-    impl From<PlusConsumer> for TestConsumer {
-        fn from(plus: PlusConsumer) -> Self {
-            TestConsumer::Plus(plus)
+    impl From<SumConsumer> for TestConsumer {
+        fn from(sum: SumConsumer) -> Self {
+            TestConsumer::Sum(sum)
         }
     }
 
-    impl From<PlusProducer> for TestProducer {
-        fn from(plus: PlusProducer) -> Self {
-            TestProducer::Plus(plus)
+    impl From<SumProducer> for TestProducer {
+        fn from(sum: SumProducer) -> Self {
+            TestProducer::Sum(sum)
         }
     }
 
@@ -647,15 +647,15 @@ mod tests {
     }
 
     enum TestNode {
-        Number(Number),
-        Plus(Plus),
+        Generator(Generator),
+        Sum(Sum),
         Recorder(Recorder),
     }
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum TestNodeClass {
-        Number,
-        Plus,
+        Generator,
+        Sum,
         Recorder,
     }
 
@@ -664,8 +664,8 @@ mod tests {
 
         fn class(&self) -> Self::Class {
             match self {
-                Self::Number(_) => TestNodeClass::Number,
-                Self::Plus(_) => TestNodeClass::Plus,
+                Self::Generator(_) => TestNodeClass::Generator,
+                Self::Sum(_) => TestNodeClass::Sum,
                 Self::Recorder(_) => TestNodeClass::Recorder,
             }
         }
@@ -678,8 +678,8 @@ mod tests {
 
         fn tick(&mut self) {
             match self {
-                Self::Number(number) => number.tick(),
-                Self::Plus(plus) => plus.tick(),
+                Self::Generator(generator) => generator.tick(),
+                Self::Sum(sum) => sum.tick(),
                 Self::Recorder(recorder) => recorder.tick(),
             }
         }
@@ -690,12 +690,12 @@ mod tests {
         {
             let producer = producer.into();
             match self {
-                Self::Number(number) => match producer {
-                    Self::Producer::Number(producer) => number.read(producer),
+                Self::Generator(generator) => match producer {
+                    Self::Producer::Generator(producer) => generator.read(producer),
                     _ => panic!("Node does not offer such producer"),
                 },
-                Self::Plus(plus) => match producer {
-                    Self::Producer::Plus(producer) => plus.read(producer),
+                Self::Sum(sum) => match producer {
+                    Self::Producer::Sum(producer) => sum.read(producer),
                     _ => panic!("Node does not offer such producer"),
                 },
                 Self::Recorder(recorder) => match producer {
@@ -711,9 +711,9 @@ mod tests {
         {
             let consumer = consumer.into();
             match self {
-                Self::Number(_) => panic!("Node does not offer such consumer"),
-                Self::Plus(plus) => match consumer {
-                    Self::Consumer::Plus(consumer) => plus.write(consumer.into(), input),
+                Self::Generator(_) => panic!("Node does not offer such consumer"),
+                Self::Sum(sum) => match consumer {
+                    Self::Consumer::Sum(consumer) => sum.write(consumer.into(), input),
                     _ => panic!("Node does not offer such consumer"),
                 },
                 Self::Recorder(recorder) => match consumer {
@@ -749,9 +749,9 @@ mod tests {
         {
             let consumer = consumer.into();
             match self.class {
-                Self::Class::Number => panic!("Node does not offer such consumer"),
-                Self::Class::Plus => match consumer {
-                    Self::Consumer::Plus(_) => Self::ConsumerIndex::new(*self, consumer.into()),
+                Self::Class::Generator => panic!("Node does not offer such consumer"),
+                Self::Class::Sum => match consumer {
+                    Self::Consumer::Sum(_) => Self::ConsumerIndex::new(*self, consumer.into()),
                     _ => panic!("Node does not offer such consumer"),
                 },
                 Self::Class::Recorder => match consumer {
@@ -767,12 +767,14 @@ mod tests {
         {
             let producer = producer.into();
             match self.class {
-                Self::Class::Number => match producer {
-                    Self::Producer::Number(_) => Self::ProducerIndex::new(*self, producer.into()),
+                Self::Class::Generator => match producer {
+                    Self::Producer::Generator(_) => {
+                        Self::ProducerIndex::new(*self, producer.into())
+                    }
                     _ => panic!("Node does not offer such producer"),
                 },
-                Self::Class::Plus => match producer {
-                    Self::Producer::Plus(_) => Self::ProducerIndex::new(*self, producer.into()),
+                Self::Class::Sum => match producer {
+                    Self::Producer::Sum(_) => Self::ProducerIndex::new(*self, producer.into()),
                     _ => panic!("Node does not offer such producer"),
                 },
                 Self::Class::Recorder => match producer {
@@ -785,7 +787,7 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
     enum TestConsumer {
-        Plus(PlusConsumer),
+        Sum(SumConsumer),
         Recorder(RecorderConsumer),
     }
 
@@ -795,8 +797,8 @@ mod tests {
 
     #[derive(PartialEq, Eq, Copy, Clone, Hash)]
     enum TestProducer {
-        Number(NumberProducer),
-        Plus(PlusProducer),
+        Generator(GeneratorProducer),
+        Sum(SumProducer),
         Recorder(RecorderProducer),
     }
 
@@ -821,13 +823,13 @@ mod tests {
 
     #[test]
     fn write_tick_read_registered_signal_node() {
-        let mut node: SignalNode<TestNode> = SignalNode::Registered(Plus::default().into());
+        let mut node: SignalNode<TestNode> = SignalNode::Registered(Sum::default().into());
 
-        node.write(SignalConsumer::Registered(PlusConsumer::In1.into()), 10);
-        node.write(SignalConsumer::Registered(PlusConsumer::In2.into()), 20);
+        node.write(SignalConsumer::Registered(SumConsumer::In1.into()), 10);
+        node.write(SignalConsumer::Registered(SumConsumer::In2.into()), 20);
         node.tick();
         assert_eq!(
-            node.read(SignalProducer::Registered(PlusProducer.into())),
+            node.read(SignalProducer::Registered(SumProducer.into())),
             30
         );
     }
@@ -842,20 +844,20 @@ mod tests {
     #[test]
     fn tick_in_simple_tree() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let two = graph.add_node(Number(2));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let two = graph.add_node(Generator(2));
+        let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
         graph.add_edge(
-            two.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In2),
+            two.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In2),
         );
         graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder.consumer(RecorderConsumer),
         );
 
@@ -873,25 +875,25 @@ mod tests {
     #[test]
     fn tick_with_multiple_consumers() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let two = graph.add_node(Number(2));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let two = graph.add_node(Generator(2));
+        let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
         graph.add_edge(
-            two.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In2),
+            two.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In2),
         );
         graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
         graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder2.consumer(RecorderConsumer),
         );
 
@@ -910,19 +912,16 @@ mod tests {
     #[test]
     fn tick_with_internal_cycle() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
+        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
         graph.add_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        );
-        graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder.consumer(RecorderConsumer),
         );
 
@@ -940,15 +939,15 @@ mod tests {
     #[test]
     fn check_for_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
+        let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
 
         assert!(graph.has_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         ));
     }
@@ -961,20 +960,20 @@ mod tests {
     #[test]
     fn remove_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
+        let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
 
         graph.remove_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
 
         assert!(!graph.has_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         ));
     }
@@ -988,21 +987,15 @@ mod tests {
     #[test]
     fn check_for_feedback_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let sum = graph.add_node(Sum::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        );
+        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
-        assert!(graph.has_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        ));
+        assert!(graph.has_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2),));
         assert!(!graph.feedback_edges.is_empty());
     }
 
@@ -1015,26 +1008,17 @@ mod tests {
     #[test]
     fn remove_feedback_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let sum = graph.add_node(Sum::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        );
+        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
-        graph.remove_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        );
+        graph.remove_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
-        assert!(!graph.has_edge(
-            plus.producer(PlusProducer),
-            plus.consumer(PlusConsumer::In2),
-        ));
+        assert!(!graph.has_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2),));
         assert!(graph.feedback_edges.is_empty());
     }
 
@@ -1051,16 +1035,16 @@ mod tests {
     #[test]
     fn remove_redundant_feedback_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
         graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
         graph.add_edge(
@@ -1069,7 +1053,7 @@ mod tests {
         );
         graph.add_edge(
             recorder2.producer(RecorderProducer),
-            plus.consumer(PlusConsumer::In2),
+            sum.consumer(SumConsumer::In2),
         );
 
         assert!(!graph.feedback_edges.is_empty());
@@ -1095,16 +1079,16 @@ mod tests {
     #[test]
     fn do_not_remove_needed_feedback_edge() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
         graph.add_edge(
-            plus.producer(PlusProducer),
+            sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
         graph.add_edge(
@@ -1113,13 +1097,13 @@ mod tests {
         );
         graph.add_edge(
             recorder2.producer(RecorderProducer),
-            plus.consumer(PlusConsumer::In2),
+            sum.consumer(SumConsumer::In2),
         );
         let original_feedbacks = graph.feedback_edges.len();
 
         graph.remove_edge(
-            one.producer(NumberProducer),
-            plus.consumer(PlusConsumer::In1),
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
         );
         assert_eq!(graph.feedback_edges.len(), original_feedbacks);
     }
@@ -1127,9 +1111,9 @@ mod tests {
     #[test]
     fn get_node() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
+        let one = graph.add_node(Generator(1));
 
-        assert_eq!(graph.node(&one).read(NumberProducer), 1);
+        assert_eq!(graph.node(&one).read(GeneratorProducer), 1);
     }
 
     #[test]
@@ -1150,17 +1134,17 @@ mod tests {
     #[test]
     fn remove_node() {
         let mut graph = TestSignalGraph::new();
-        let one = graph.add_node(Number(1));
+        let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
         graph.add_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
 
         graph.remove_node(recorder);
 
         assert!(!graph.has_edge(
-            one.producer(NumberProducer),
+            one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         ));
     }

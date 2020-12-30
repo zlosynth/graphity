@@ -12,18 +12,12 @@
 /// # pub struct Generator;
 /// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorConsumer {}
 /// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorProducer {}
-/// # impl Node<i32> for Generator {
-/// #     type Consumer = GeneratorConsumer;
-/// #     type Producer = GeneratorProducer;
-/// # }
+/// # impl Node<i32> for Generator {type Consumer = GeneratorConsumer; type Producer = GeneratorProducer;}
 /// #
 /// # pub struct Echo;
 /// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoConsumer {}
 /// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoProducer {}
-/// # impl Node<i32> for Echo {
-/// #     type Consumer = EchoConsumer;
-/// #     type Producer = EchoProducer;
-/// # }
+/// # impl Node<i32> for Echo {type Consumer = EchoConsumer; type Producer = EchoProducer;}
 /// #
 /// # #[macro_use]
 /// # extern crate graphity;
@@ -225,6 +219,7 @@ macro_rules! graphity {
             fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
                 GeneratedProducer::$node(producer)
             }
+
         }
         )*
 
@@ -241,17 +236,17 @@ macro_rules! graphity {
 mod tests {
     use graphity::node::{Node, NodeIndex, NodeWrapper};
 
-    pub struct Number(i32);
+    pub struct Generator(i32);
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub enum NumberInput {}
+    pub enum GeneratorInput {}
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct NumberOutput;
+    pub struct GeneratorOutput;
 
-    impl Node<i32> for Number {
-        type Consumer = NumberInput;
-        type Producer = NumberOutput;
+    impl Node<i32> for Generator {
+        type Consumer = GeneratorInput;
+        type Producer = GeneratorOutput;
 
         fn read(&self, _producer: Self::Producer) -> i32 {
             self.0
@@ -259,24 +254,24 @@ mod tests {
     }
 
     #[derive(Default)]
-    pub struct Plus {
+    pub struct Sum {
         input1: i32,
         input2: i32,
         output: i32,
     }
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub enum PlusInput {
+    pub enum SumInput {
         In1,
         In2,
     }
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct PlusOutput;
+    pub struct SumOutput;
 
-    impl Node<i32> for Plus {
-        type Consumer = PlusInput;
-        type Producer = PlusOutput;
+    impl Node<i32> for Sum {
+        type Consumer = SumInput;
+        type Producer = SumOutput;
 
         fn tick(&mut self) {
             self.output = self.input1 + self.input2;
@@ -284,8 +279,8 @@ mod tests {
 
         fn write(&mut self, consumer: Self::Consumer, input: i32) {
             match consumer {
-                PlusInput::In1 => self.input1 = input,
-                PlusInput::In2 => self.input2 = input,
+                SumInput::In1 => self.input1 = input,
+                SumInput::In2 => self.input2 = input,
             }
         }
 
@@ -328,19 +323,19 @@ mod tests {
     #[test]
     fn simple_tree() {
         mod g {
-            use super::{Number, Plus, Recorder};
-            graphity!(Graph<i32>; Number, Plus, Recorder);
+            use super::{Generator, Recorder, Sum};
+            graphity!(Graph<i32>; Generator, Sum, Recorder);
         }
         use g::Graph;
 
         let mut graph = Graph::new();
-        let one = graph.add_node(Number(1));
-        let two = graph.add_node(Number(2));
-        let plus = graph.add_node(Plus::default());
+        let one = graph.add_node(Generator(1));
+        let two = graph.add_node(Generator(2));
+        let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(NumberOutput), plus.consumer(PlusInput::In1));
-        graph.add_edge(two.producer(NumberOutput), plus.consumer(PlusInput::In2));
-        graph.add_edge(plus.producer(PlusOutput), recorder.consumer(RecorderInput));
+        graph.add_edge(one.producer(GeneratorOutput), sum.consumer(SumInput::In1));
+        graph.add_edge(two.producer(GeneratorOutput), sum.consumer(SumInput::In2));
+        graph.add_edge(sum.producer(SumOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
         assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
