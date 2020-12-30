@@ -48,16 +48,12 @@ where
         });
     }
 
-    pub fn node(&self, node_index: &NI) -> &N {
-        self.nodes
-            .get(node_index)
-            .expect("The node for the given index was not found")
+    pub fn node(&self, node_index: &NI) -> Option<&N> {
+        self.nodes.get(node_index)
     }
 
-    pub fn node_mut(&mut self, node_index: &NI) -> &mut N {
-        self.nodes
-            .get_mut(node_index)
-            .expect("The node for the given index was not found")
+    pub fn node_mut(&mut self, node_index: &NI) -> Option<&mut N> {
+        self.nodes.get_mut(node_index)
     }
 
     pub fn add_edge(&mut self, producer: PI, consumer: CI) {
@@ -212,14 +208,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "The node for the given index was not found")]
     fn remove_node() {
         let mut graph = TestGraph::new();
         let index = graph.add_node(10);
 
         graph.remove_node(index);
 
-        graph.node(&index);
+        assert!(graph.node(&index).is_none());
     }
 
     #[test]
@@ -227,15 +222,14 @@ mod tests {
         let mut graph = TestGraph::new();
         let index = graph.add_node(10);
 
-        assert_eq!(*graph.node(&index), TestNode(10));
+        assert_eq!(*graph.node(&index).unwrap(), TestNode(10));
     }
 
     #[test]
-    #[should_panic(expected = "The node for the given index was not found")]
-    fn panic_on_get_nonexistent_node() {
+    fn return_none_on_get_nonexistent_node() {
         let graph = TestGraph::new();
 
-        graph.node(&NodeIndex::new(TestClass, 100));
+        assert!(graph.node(&NodeIndex::new(TestClass, 100)).is_none());
     }
 
     #[test]
@@ -243,16 +237,15 @@ mod tests {
         let mut graph = TestGraph::new();
         let index = graph.add_node(10);
 
-        *graph.node_mut(&index) = 20.into();
-        assert_eq!(*graph.node(&index), 20.into());
+        *graph.node_mut(&index).unwrap() = 20.into();
+        assert_eq!(*graph.node(&index).unwrap(), 20.into());
     }
 
     #[test]
-    #[should_panic(expected = "The node for the given index was not found")]
-    fn panic_on_get_nonexistent_node_mut() {
+    fn return_none_on_get_nonexistent_node_mut() {
         let mut graph = TestGraph::new();
 
-        graph.node_mut(&NodeIndex::new(TestClass, 100));
+        assert!(graph.node_mut(&NodeIndex::new(TestClass, 100)).is_none());
     }
 
     #[test]

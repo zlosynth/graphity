@@ -338,6 +338,6 @@ mod tests {
         graph.add_edge(sum.producer(SumOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderOutput), 3);
     }
 }

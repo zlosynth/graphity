@@ -163,7 +163,7 @@ pub trait NodeClass {
 ///
 /// ```ignore
 /// let node_index = graph.add_node(Generator(1));
-/// let node_wrapper = graph.node(&node_index);
+/// let node_wrapper = graph.node(&node_index).unwrap();
 /// let data = node_wrapper.read(GeneratorProducer);
 /// ```
 pub trait NodeWrapper: NodeClass {

@@ -392,34 +392,30 @@ where
 
     /// Access a node stored in the graph.
     ///
-    /// # Panics
-    ///
-    /// Will panic if the `node_index` references a non-existent node.
+    /// Returns `None` if the `node_index` references a non-existent node.
     ///
     /// # Example
     ///
     /// ```ignore
     /// let node = graph.node(generator);
     /// ```
-    pub fn node(&self, node_index: &NI) -> &N {
+    pub fn node(&self, node_index: &NI) -> Option<&N> {
         let node_index = SignalNodeIndex::Registered(*node_index);
-        self.graph.node(&node_index).must_registered()
+        Some(self.graph.node(&node_index)?.must_registered())
     }
 
     /// Mutably access a node stored in the graph.
     ///
-    /// # Panics
-    ///
-    /// Will panic if the `node_index` references a non-existent node.
+    /// Returns `None` if the `node_index` references a non-existent node.
     ///
     /// # Example
     ///
     /// ```ignore
     /// let mut node = graph.node_mut(generator);
     /// ```
-    pub fn node_mut(&mut self, node_index: &NI) -> &mut N {
+    pub fn node_mut(&mut self, node_index: &NI) -> Option<&mut N> {
         let node_index = SignalNodeIndex::Registered(*node_index);
-        self.graph.node_mut(&node_index).must_registered_mut()
+        Some(self.graph.node_mut(&node_index)?.must_registered_mut())
     }
 
     /// Add an edge connecting producer of one node to a consumer of another.
@@ -580,7 +576,7 @@ where
                     continue;
                 }
 
-                let source = self.graph.node(&source_index.node_index());
+                let source = self.graph.node(&source_index.node_index()).unwrap();
                 let output = source.read(source_index.producer());
                 let destination = self
                     .graph
@@ -997,7 +993,7 @@ mod tests {
         );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderProducer), 3);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderProducer), 3);
     }
 
     //
@@ -1033,8 +1029,8 @@ mod tests {
         );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder1).read(RecorderProducer), 3);
-        assert_eq!(graph.node(&recorder2).read(RecorderProducer), 3);
+        assert_eq!(graph.node(&recorder1).unwrap().read(RecorderProducer), 3);
+        assert_eq!(graph.node(&recorder2).unwrap().read(RecorderProducer), 3);
     }
 
     //
@@ -1061,9 +1057,9 @@ mod tests {
         );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderProducer), 1);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderProducer), 1);
         graph.tick();
-        assert_eq!(graph.node(&recorder).read(RecorderProducer), 2);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderProducer), 2);
     }
 
     //
@@ -1248,7 +1244,7 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
 
-        assert_eq!(graph.node(&one).read(GeneratorProducer), 1);
+        assert_eq!(graph.node(&one).unwrap().read(GeneratorProducer), 1);
     }
 
     #[test]
@@ -1256,9 +1252,12 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let recorder = graph.add_node(Recorder::default());
 
-        graph.node_mut(&recorder).write(RecorderConsumer, 10);
+        graph
+            .node_mut(&recorder)
+            .unwrap()
+            .write(RecorderConsumer, 10);
 
-        assert_eq!(graph.node(&recorder).read(RecorderProducer), 10);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderProducer), 10);
     }
 
     //
