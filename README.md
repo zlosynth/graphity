@@ -34,11 +34,11 @@ Then you need to:
 In this example, we will use 3 node types and wire them up as following:
 
 ```
-|   [1]   [2]  - Generators are outputting their given value
-|     \   /
-|      [+]     - Sum adds the two inputs together
-|       |
-V      [3]     - Echo prints its input on the standard output
+|  [1]   [2]  Generators are outputting their value
+|    \   /
+|     [+]     Sum adds the two inputs together
+|      |
+V     [3]     Echo prints its input on the stdout
 ```
 
 The following snippet illustrates how would be such a graph modeled via this
