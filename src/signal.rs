@@ -9,7 +9,7 @@ use hashbrown::HashMap;
 use crate::feedback::{
     self, FeedbackSink, FeedbackSinkProducer, FeedbackSource, FeedbackSourceConsumer,
 };
-use crate::graph::Graph;
+use crate::graph::{self, Graph};
 use crate::internal::{
     InternalConsumer, InternalConsumerIndex, InternalNode, InternalNodeClass, InternalNodeIndex,
     InternalProducer, InternalProducerIndex,
@@ -287,6 +287,21 @@ where
     }
 }
 
+/// Enumeration of all the errors that could happen while adding a new edge to
+/// the graph.
+#[derive(Debug)]
+pub enum AddEdgeError {
+    /// Each consumer must have at most one producer connected to it. If that is
+    /// not the case, this error will be returned.
+    OccupiedConsumer,
+}
+
+impl From<graph::AddEdgeError> for AddEdgeError {
+    fn from(_error: graph::AddEdgeError) -> Self {
+        AddEdgeError::OccupiedConsumer
+    }
+}
+
 /// A graph structure meant to model signal flow between registered nodes.
 ///
 /// Signal graph can be populated with nodes, then producers and consumers of
@@ -420,9 +435,10 @@ where
 
     /// Add an edge connecting producer of one node to a consumer of another.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Will panic if the consumer is already connected to a different producer.
+    /// Will return an error if the consumer is already connected to a different
+    /// producer.
     ///
     /// # Example
     ///
@@ -430,21 +446,21 @@ where
     /// graph.add_edge(
     ///     generator.producer(GeneratorProducer),
     ///     echo.consumer(EchoConsumer),
-    /// );
+    /// ).unwrap();
     /// ```
     ///
     /// `generator` and `echo` are indices previously returned by `add_node`.
     /// `GeneratorProducer` and `EchoConsumer` are types defined by the user and
     /// bound to their respective nodes.
-    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
+    pub fn add_edge(&mut self, producer: PI, consumer: CI) -> Result<(), AddEdgeError> {
         if self.has_edge(producer, consumer) {
-            return;
+            return Ok(());
         }
 
         let producer = SignalProducerIndex::Registered(producer);
         let consumer = SignalConsumerIndex::Registered(consumer);
 
-        self.graph.add_edge(producer, consumer);
+        self.graph.add_edge(producer, consumer)?;
 
         if self.has_cycles() {
             self.graph.remove_edge(producer, consumer);
@@ -452,6 +468,30 @@ where
         }
 
         self.update_cache();
+
+        Ok(())
+    }
+
+    /// Add an edge connecting producer of one node to a consumer of another.
+    ///
+    /// See [`add_edge`](#method.add_edge) for more info.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the consumer is already connected to a different producer.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// graph.must_add_edge(
+    ///     generator.producer(GeneratorProducer),
+    ///     echo.consumer(EchoConsumer),
+    /// );
+    /// ```
+    ///
+    /// See [`add_edge`](#method.add_edge) for more info.
+    pub fn must_add_edge(&mut self, producer: PI, consumer: CI) {
+        self.add_edge(producer, consumer).unwrap();
     }
 
     fn add_feedback_edge(
@@ -465,9 +505,9 @@ where
         let sink = self.graph.add_node(sink);
 
         self.graph
-            .add_edge(producer, source.consumer(FeedbackSourceConsumer));
+            .must_add_edge(producer, source.consumer(FeedbackSourceConsumer));
         self.graph
-            .add_edge(sink.producer(FeedbackSinkProducer), consumer);
+            .must_add_edge(sink.producer(FeedbackSinkProducer), consumer);
 
         self.feedback_edges
             .insert((producer, consumer), (source, sink));
@@ -519,12 +559,12 @@ where
 
             self.graph.remove_edge(*producer, source_consumer);
             self.graph.remove_edge(sink_producer, *consumer);
-            self.graph.add_edge(*producer, *consumer);
+            self.graph.must_add_edge(*producer, *consumer);
 
             if self.has_cycles() {
                 self.graph.remove_edge(*producer, *consumer);
-                self.graph.add_edge(*producer, source_consumer);
-                self.graph.add_edge(sink_producer, *consumer);
+                self.graph.must_add_edge(*producer, source_consumer);
+                self.graph.must_add_edge(sink_producer, *consumer);
             } else {
                 self.graph.remove_node(*source);
                 self.graph.remove_node(*sink);
@@ -979,15 +1019,15 @@ mod tests {
         let two = graph.add_node(Generator(2));
         let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             two.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In2),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder.consumer(RecorderConsumer),
         );
@@ -1011,19 +1051,19 @@ mod tests {
         let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             two.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In2),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder2.consumer(RecorderConsumer),
         );
@@ -1046,12 +1086,12 @@ mod tests {
         let one = graph.add_node(Generator(1));
         let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
-        graph.add_edge(
+        graph.must_add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder.consumer(RecorderConsumer),
         );
@@ -1072,7 +1112,7 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
@@ -1093,7 +1133,7 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );
@@ -1120,11 +1160,11 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
         let sum = graph.add_node(Sum::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
+        graph.must_add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
         assert!(graph.has_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2),));
         assert!(!graph.feedback_edges.is_empty());
@@ -1141,11 +1181,11 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
         let sum = graph.add_node(Sum::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
+        graph.must_add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
         graph.remove_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
@@ -1170,19 +1210,19 @@ mod tests {
         let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             recorder1.producer(RecorderProducer),
             recorder2.consumer(RecorderConsumer),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             recorder2.producer(RecorderProducer),
             sum.consumer(SumConsumer::In2),
         );
@@ -1214,19 +1254,19 @@ mod tests {
         let sum = graph.add_node(Sum::default());
         let recorder1 = graph.add_node(Recorder::default());
         let recorder2 = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             sum.consumer(SumConsumer::In1),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             sum.producer(SumProducer),
             recorder1.consumer(RecorderConsumer),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             recorder1.producer(RecorderProducer),
             recorder2.consumer(RecorderConsumer),
         );
-        graph.add_edge(
+        graph.must_add_edge(
             recorder2.producer(RecorderProducer),
             sum.consumer(SumConsumer::In2),
         );
@@ -1270,7 +1310,7 @@ mod tests {
         let mut graph = TestSignalGraph::new();
         let one = graph.add_node(Generator(1));
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(
+        graph.must_add_edge(
             one.producer(GeneratorProducer),
             recorder.consumer(RecorderConsumer),
         );

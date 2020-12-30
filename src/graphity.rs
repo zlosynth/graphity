@@ -333,9 +333,9 @@ mod tests {
         let two = graph.add_node(Generator(2));
         let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.add_edge(one.producer(GeneratorOutput), sum.consumer(SumInput::In1));
-        graph.add_edge(two.producer(GeneratorOutput), sum.consumer(SumInput::In2));
-        graph.add_edge(sum.producer(SumOutput), recorder.consumer(RecorderInput));
+        graph.must_add_edge(one.producer(GeneratorOutput), sum.consumer(SumInput::In1));
+        graph.must_add_edge(two.producer(GeneratorOutput), sum.consumer(SumInput::In2));
+        graph.must_add_edge(sum.producer(SumOutput), recorder.consumer(RecorderInput));
 
         graph.tick();
         assert_eq!(graph.node(&recorder).unwrap().read(RecorderOutput), 3);

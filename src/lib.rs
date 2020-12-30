@@ -293,6 +293,7 @@
 
 extern crate alloc;
 
+pub mod error;
 mod feedback;
 mod graph;
 mod graphity;
@@ -301,4 +302,5 @@ pub mod node;
 pub mod signal;
 mod sort;
 
+pub use error::Error;
 pub use node::{Node, NodeIndex, NodeWrapper};

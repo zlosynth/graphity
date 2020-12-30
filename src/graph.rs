@@ -14,6 +14,11 @@ where
     pub edges: HashSet<(PI, CI)>,
 }
 
+#[derive(Debug)]
+pub enum AddEdgeError {
+    OccupiedConsumer,
+}
+
 #[allow(clippy::new_without_default)]
 impl<N, NI, CI, PI> Graph<N, NI, CI, PI>
 where
@@ -56,15 +61,21 @@ where
         self.nodes.get_mut(node_index)
     }
 
-    pub fn add_edge(&mut self, producer: PI, consumer: CI) {
+    pub fn add_edge(&mut self, producer: PI, consumer: CI) -> Result<(), AddEdgeError> {
         self.edges
             .iter()
-            .for_each(|(existing_producer, existing_consumer)| {
+            .try_for_each(|(existing_producer, existing_consumer)| {
                 if *existing_consumer == consumer && *existing_producer != producer {
-                    panic!("Each consumer must be connected to the maximum of a single producer at the time");
+                    return Err(AddEdgeError::OccupiedConsumer);
                 }
-            });
+                Ok(())
+            })?;
         self.edges.insert((producer, consumer));
+        Ok(())
+    }
+
+    pub fn must_add_edge(&mut self, producer: PI, consumer: CI) {
+        self.add_edge(producer, consumer).unwrap();
     }
 
     pub fn remove_edge(&mut self, producer: PI, consumer: CI) {
@@ -256,7 +267,7 @@ mod tests {
 
         assert!(!graph.has_edge(one.producer(TestProducer), two.consumer(TestConsumer)));
 
-        graph.add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
 
         assert!(graph.has_edge(one.producer(TestProducer), two.consumer(TestConsumer)));
     }
@@ -268,25 +279,24 @@ mod tests {
         let two = graph.add_node(2);
         let three = graph.add_node(3);
 
-        graph.add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
-        graph.add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
 
         assert!(graph.has_edge(one.producer(TestProducer), two.consumer(TestConsumer)));
         assert!(graph.has_edge(one.producer(TestProducer), three.consumer(TestConsumer)));
     }
 
     #[test]
-    #[should_panic(
-        expected = "Each consumer must be connected to the maximum of a single producer at the time"
-    )]
-    fn panic_on_add_multiple_edges_with_single_destination() {
+    fn return_error_on_add_multiple_edges_with_single_destination() {
         let mut graph = TestGraph::new();
         let one = graph.add_node(1);
         let two = graph.add_node(2);
         let three = graph.add_node(3);
 
-        graph.add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
-        graph.add_edge(two.producer(TestProducer), three.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
+        assert!(graph
+            .add_edge(two.producer(TestProducer), three.consumer(TestConsumer))
+            .is_err());
     }
 
     #[test]
@@ -294,7 +304,7 @@ mod tests {
         let mut graph = TestGraph::new();
         let one = graph.add_node(1);
         let two = graph.add_node(2);
-        graph.add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
 
         graph.remove_edge(one.producer(TestProducer), two.consumer(TestConsumer));
 
@@ -306,7 +316,7 @@ mod tests {
         let mut graph = TestGraph::new();
         let one = graph.add_node(1);
         let two = graph.add_node(2);
-        graph.add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
 
         graph.remove_node(one);
 
@@ -319,8 +329,8 @@ mod tests {
         let one = graph.add_node(1);
         let two = graph.add_node(2);
         let three = graph.add_node(3);
-        graph.add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
-        graph.add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), two.consumer(TestConsumer));
+        graph.must_add_edge(one.producer(TestProducer), three.consumer(TestConsumer));
 
         graph.remove_node(two);
 

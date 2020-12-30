@@ -103,15 +103,15 @@ fn main() {
    [1]   [2]
 "
     );
-    graph.add_edge(
+    graph.must_add_edge(
         one.producer(GeneratorProducer),
         sum.consumer(SumConsumer::In1),
     );
-    graph.add_edge(
+    graph.must_add_edge(
         two.producer(GeneratorProducer),
         sum.consumer(SumConsumer::In2),
     );
-    graph.add_edge(sum.producer(SumProducer), echo.consumer(EchoConsumer));
+    graph.must_add_edge(sum.producer(SumProducer), echo.consumer(EchoConsumer));
 
     graph.tick();
 
@@ -130,7 +130,7 @@ Rewiring it to form a feedback:
         two.producer(GeneratorProducer),
         sum.consumer(SumConsumer::In2),
     );
-    graph.add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
+    graph.must_add_edge(sum.producer(SumProducer), sum.consumer(SumConsumer::In2));
 
     graph.tick();
     graph.tick();
