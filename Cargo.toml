@@ -16,3 +16,4 @@ hashbrown = "0.9"
 
 [dev-dependencies]
 graphity = { path = "." }
+graphity-nodes = { path = "nodes" }

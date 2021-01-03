@@ -1,0 +1,13 @@
+[package]
+name = "graphity-nodes"
+version = "0.0.0"
+edition = "2018"
+authors = ["Petr Horáček <hrck@protonmail.com>"]
+description = "Example nodes used for testing within the project"
+repository = "https://github.com/zlosynth/graphity"
+documentation = "https://docs.rs/graphity"
+license = "GPL-3.0-or-later"
+publish = false
+
+[dependencies]
+graphity = { path = "../" }
