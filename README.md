@@ -58,13 +58,15 @@ impl Node<i32> for Sum {
    ...
 }
 
-mod g {
-    use super::{Echo, Generator, Sum};
-    graphity!(Graph<i32>; Echo, Generator, Sum);
-}
+graphity!(
+    Graph<i32>;
+    Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+    Sum = {Sum, SumConsumer, SumProducer},
+    Echo = {Echo, EchoConsumer, EchoProducer},
+);
 
 fn main() {
-    let mut graph = g::Graph::new();
+    let mut graph = Graph::new();
 
     let one = graph.add_node(Generator(1));
     let two = graph.add_node(Generator(2));

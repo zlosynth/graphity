@@ -1,95 +1,23 @@
 #[macro_use]
 extern crate graphity;
 
-use graphity::{Node, NodeIndex};
+use graphity::NodeIndex;
 
-mod g {
-    use super::{Echo, Generator, Sum};
-    graphity!(Graph<i32>; Echo, Generator, Sum);
-}
+// See definitions of nodes used here under nodes/src/lib.rs
+use graphity_nodes::*;
 
-#[derive(Default)]
-pub struct Echo {
-    input: i32,
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct EchoConsumer;
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum EchoProducer {}
-
-impl Node<i32> for Echo {
-    type Consumer = EchoConsumer;
-    type Producer = EchoProducer;
-
-    fn tick(&mut self) {
-        println!("Echo: {}", self.input);
-    }
-
-    fn write(&mut self, _consumer: Self::Consumer, input: i32) {
-        self.input = input;
-    }
-}
-
-pub struct Generator(i32);
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum GeneratorConsumer {}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct GeneratorProducer;
-
-impl Node<i32> for Generator {
-    type Consumer = GeneratorConsumer;
-    type Producer = GeneratorProducer;
-
-    fn read(&self, _producer: Self::Producer) -> i32 {
-        self.0
-    }
-}
-
-#[derive(Default)]
-pub struct Sum {
-    input1: i32,
-    input2: i32,
-    output: i32,
-}
-
-#[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-pub enum SumConsumer {
-    In1,
-    In2,
-}
-
-#[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-pub struct SumProducer;
-
-impl Node<i32> for Sum {
-    type Consumer = SumConsumer;
-    type Producer = SumProducer;
-
-    fn tick(&mut self) {
-        self.output = self.input1 + self.input2;
-    }
-
-    fn read(&self, _producer: Self::Producer) -> i32 {
-        self.output
-    }
-
-    fn write(&mut self, consumer: Self::Consumer, input: i32) {
-        match consumer {
-            Self::Consumer::In1 => self.input1 = input,
-            Self::Consumer::In2 => self.input2 = input,
-        }
-    }
-}
+graphity!(
+    Graph<i32>;
+    Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+    Sum = {Sum, SumConsumer, SumProducer},
+    Echo = {Echo, EchoConsumer, EchoProducer},
+);
 
 fn main() {
-    let mut graph = g::Graph::new();
+    let mut graph = Graph::new();
 
-    let one = graph.add_node(Generator(1));
-    let two = graph.add_node(Generator(2));
+    let one = graph.add_node(Generator::new(1));
+    let two = graph.add_node(Generator::new(2));
     let sum = graph.add_node(Sum::default());
     let echo = graph.add_node(Echo::default());
 

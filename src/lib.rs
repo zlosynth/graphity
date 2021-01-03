@@ -215,11 +215,17 @@
 //! the name of the generated structure, the type of the payload passed between
 //! nodes and list of the previously defined nodes:
 //!
-//! ```ignore
-//! mod g {
-//!     use super::{Number, Plus, Printer};
-//!     graphity!(Graph<i32>; Printer, Number, Plus);
-//! }
+//! ```
+//! # use graphity_nodes::*;
+//! # #[macro_use]
+//! # extern crate graphity;
+//! # fn main() {
+//! graphity!(
+//!     Graph<i32>;
+//!     Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+//!     Echo = {Echo, EchoConsumer, EchoProducer},
+//! );
+//! # }
 //! ```
 //!
 //! Note that the macro is called within its own module to prevent conflicts
@@ -233,7 +239,7 @@
 //! First, let's create an instance of the previously generated graph:
 //!
 //! ```ignore
-//! let mut graph = g::Graph::new();
+//! let mut graph = Graph::new();
 //! ```
 //!
 //! Then add nodes to it. The returned value is actually an index of the stored

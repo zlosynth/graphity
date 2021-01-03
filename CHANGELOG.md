@@ -1,5 +1,11 @@
 # Changelog
 
+## Main
+
+* **Breaking change:** The signature of the `graphity!` macro has been changed
+  to allow imports of external nodes. Read documentation of the macro to learn
+  more.
+
 ## 1.0.0
 
 * Full implementation of the core feature-set. Allows users to define their

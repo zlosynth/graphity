@@ -7,90 +7,88 @@
 /// could keep instances of `Generator` and `Echo` nodes:
 ///
 /// ```
-/// # use graphity::Node;
-/// #
-/// # pub struct Generator;
-/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorConsumer {}
-/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum GeneratorProducer {}
-/// # impl Node<i32> for Generator {type Consumer = GeneratorConsumer; type Producer = GeneratorProducer;}
-/// #
-/// # pub struct Echo;
-/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoConsumer {}
-/// # #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)] pub enum EchoProducer {}
-/// # impl Node<i32> for Echo {type Consumer = EchoConsumer; type Producer = EchoProducer;}
-/// #
+/// # use graphity_nodes::*;
 /// # #[macro_use]
 /// # extern crate graphity;
 /// # fn main() {
 /// // pub struct Generator ...
+/// // pub struct GeneratorConsumer ...
+/// // pub struct GeneratorProducer ...
 /// // pub struct Echo ...
+/// // pub struct EchoConsumer ...
+/// // pub struct EchoProducer ...
 ///
-/// mod g {
-///     use super::{Generator, Echo};
-///     graphity!(Graph<i32>; Generator, Echo);
-/// }
+/// graphity!(
+///     Graph<i32>;
+///     Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+///     Echo = {Echo, EchoConsumer, EchoProducer},
+/// );
 /// # }
 /// ```
 ///
-/// * `Generator` and `Echo` are types implementing the [Node
-///    trait](node/trait.Node.html).
-/// * `mod g` limits a scope in which will the macro operate, this is needed to
-///    avoid conflicts with the rest of the code.
-/// * `use super...` is needed to bring nodes into the scope of the macro.
 /// * `Graph` defines the name of the generated signal graph type.
-/// * `i32` dictates the payload type that will flow between nodes.
+/// * `<i32>` dictates the payload type that will flow between nodes.
+/// * `Generator` and `Echo` on the left hand side are identificators for each
+///    of the nodes. They must be unique within the graph.
+/// * Triplets on their right hand side reference a node and its associated
+///   consumer and producer types. Read the [Node
+///   documentation](node/trait.Node.html) to learn how to define these.
 ///
 /// Once the macro generates the signal graph type, it can be instantiated:
 ///
-/// ```ignore
-/// let graph = g::Graph::new();
+/// ```
+/// # use graphity_nodes::*;
+/// # #[macro_use]
+/// # extern crate graphity;
+/// # fn main() {
+/// # graphity!(
+/// #     Graph<i32>;
+/// #     Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+/// #     Echo = {Echo, EchoConsumer, EchoProducer},
+/// # );
+/// let graph = Graph::new();
+/// # }
 /// ```
 ///
 /// For more details on how to use such graph, see the [`SignalGraph`
 /// documentation](file:///home/phoracek/code/zlosynth/graphity/target/doc/graphity/signal/struct.SignalGraph.html).
 #[macro_export]
 macro_rules! graphity {
-    ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
-        use graphity::node::{
-            ExternalConsumer, ExternalNodeWrapper, ExternalProducer, Node, NodeWrapper, NodeClass,
-            CommonConsumerIndex, CommonProducerIndex, NodeIndex, ProducerIndex, ConsumerIndex
-        };
-        use graphity::signal::SignalGraph;
-
-        pub enum GeneratedNode {
+    ( $graph:ident<$payload:ty>; $( $nid:ident = {$node:ty, $consumer:ty, $producer:ty} ),* $(,)? ) => {
+        pub enum __Node {
             $(
-            $node($node),
+            $nid($node),
             )*
         }
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-        pub enum GeneratedNodeClass {
+        pub enum __NodeClass {
             $(
-            $node,
+            $nid,
             )*
         }
 
-        impl NodeClass for GeneratedNode {
-            type Class = GeneratedNodeClass;
+        impl graphity::node::NodeClass for __Node {
+            type Class = __NodeClass;
 
             fn class(&self) -> Self::Class {
                 match self {
                     $(
-                    Self::$node(_) => GeneratedNodeClass::$node,
+                    Self::$nid(_) => __NodeClass::$nid,
                     )*
                 }
             }
         }
 
-        impl NodeWrapper for GeneratedNode {
+        impl graphity::node::NodeWrapper for __Node {
             type Payload = $payload;
-            type Consumer = GeneratedConsumer;
-            type Producer = GeneratedProducer;
+            type Consumer = __Consumer;
+            type Producer = __Producer;
 
             fn tick(&mut self) {
                 match self {
                     $(
-                    Self::$node(node) => node.tick(),
+                    Self::$nid(node) => <$node as graphity::node::Node<$payload>>::tick(node),
                     )*
                 }
             }
@@ -102,8 +100,8 @@ macro_rules! graphity {
                 let producer = producer.into();
                 match self {
                     $(
-                    Self::$node(node) => match producer {
-                        Self::Producer::$node(producer) => node.read(producer),
+                    Self::$nid(node) => match producer {
+                        Self::Producer::$nid(producer) => <$node as graphity::node::Node<$payload>>::read(node, producer),
                         #[allow(unreachable_patterns)]
                         _ => unreachable!("Node does not offer such producer"),
                     },
@@ -118,8 +116,8 @@ macro_rules! graphity {
                 let consumer = consumer.into();
                 match self {
                     $(
-                    Self::$node(node) => match consumer {
-                        Self::Consumer::$node(consumer) => node.write(consumer, input),
+                    Self::$nid(node) => match consumer {
+                        Self::Consumer::$nid(consumer) => <$node as graphity::node::Node<$payload>>::write(node, consumer, input),
                         #[allow(unreachable_patterns)]
                         _ => unreachable!("Node does not offer such consumer"),
                     },
@@ -128,34 +126,36 @@ macro_rules! graphity {
             }
         }
 
-        impl ExternalNodeWrapper<$payload> for GeneratedNode {}
+        impl graphity::node::ExternalNodeWrapper<$payload> for __Node {}
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash)]
-        pub struct GeneratedNodeIndex {
-            class: GeneratedNodeClass,
+        pub struct __NodeIndex {
+            class: __NodeClass,
             index: usize,
         }
 
-        impl NodeIndex for GeneratedNodeIndex {
-            type Class = GeneratedNodeClass;
-            type Consumer = GeneratedConsumer;
-            type ConsumerIndex = GeneratedConsumerIndex;
-            type Producer = GeneratedProducer;
-            type ProducerIndex = GeneratedProducerIndex;
+        impl graphity::node::NodeIndex for __NodeIndex {
+            type Class = __NodeClass;
+            type Consumer = __Consumer;
+            type ConsumerIndex = __ConsumerIndex;
+            type Producer = __Producer;
+            type ProducerIndex = __ProducerIndex;
 
-            fn new(class: GeneratedNodeClass, index: usize) -> Self {
+            fn new(class: __NodeClass, index: usize) -> Self {
                 Self { class, index }
             }
 
-            fn consumer<IntoC>(&self, consumer: IntoC) -> GeneratedConsumerIndex
+            fn consumer<IntoC>(&self, consumer: IntoC) -> __ConsumerIndex
             where
-                IntoC: Into<GeneratedConsumer>,
+                IntoC: Into<__Consumer>,
             {
                 let consumer = consumer.into();
                 match self.class {
                     $(
-                    Self::Class::$node => match consumer {
-                        Self::Consumer::$node(_) => CommonConsumerIndex::new(*self, consumer),
+                    Self::Class::$nid => match consumer {
+                        Self::Consumer::$nid(_) => <
+                            graphity::node::CommonConsumerIndex<__NodeIndex> as graphity::node::ConsumerIndex
+                        >::new(*self, consumer),
                         #[allow(unreachable_patterns)]
                         _ => panic!("Node does not offer such consumer")
                     },
@@ -163,15 +163,17 @@ macro_rules! graphity {
                 }
             }
 
-            fn producer<IntoP>(&self, producer: IntoP) -> GeneratedProducerIndex
+            fn producer<IntoP>(&self, producer: IntoP) -> __ProducerIndex
             where
-                IntoP: Into<GeneratedProducer>,
+                IntoP: Into<__Producer>,
             {
                 let producer = producer.into();
                 match self.class {
                     $(
-                    Self::Class::$node => match producer {
-                        Self::Producer::$node(_) => CommonProducerIndex::new(*self, producer),
+                    Self::Class::$nid => match producer {
+                        Self::Producer::$nid(_) => <
+                            graphity::node::CommonProducerIndex<__NodeIndex> as graphity::node::ProducerIndex
+                        >::new(*self, producer),
                         #[allow(unreachable_patterns)]
                         _ => panic!("Node does not offer such producer")
                     },
@@ -181,135 +183,66 @@ macro_rules! graphity {
         }
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug)]
-        pub enum GeneratedConsumer {
+        pub enum __Consumer {
             $(
-            $node(<$node as Node<$payload>>::Consumer),
+            $nid(<$node as graphity::node::Node<$payload>>::Consumer),
             )*
         }
 
-        impl ExternalConsumer for GeneratedConsumer {}
+        impl graphity::node::ExternalConsumer for __Consumer {}
 
-        pub type GeneratedConsumerIndex = CommonConsumerIndex<GeneratedNodeIndex>;
+        pub type __ConsumerIndex = graphity::node::CommonConsumerIndex<__NodeIndex>;
 
         #[derive(PartialEq, Eq, Copy, Clone, Hash)]
-        pub enum GeneratedProducer {
+        pub enum __Producer {
             $(
-            $node(<$node as Node<$payload>>::Producer),
+            $nid(<$node as graphity::node::Node<$payload>>::Producer),
             )*
         }
 
-        impl ExternalProducer for GeneratedProducer {}
+        impl graphity::node::ExternalProducer for __Producer {}
 
-        pub type GeneratedProducerIndex = CommonProducerIndex<GeneratedNodeIndex>;
+        pub type __ProducerIndex = graphity::node::CommonProducerIndex<__NodeIndex>;
 
         $(
-        impl From<$node> for GeneratedNode {
+        impl From<$node> for __Node {
             fn from(node: $node) -> Self {
-                GeneratedNode::$node(node)
+                Self::$nid(node)
             }
         }
 
-        impl From<<$node as Node<$payload>>::Consumer> for GeneratedConsumer {
-            fn from(consumer: <$node as Node<$payload>>::Consumer) -> Self {
-                GeneratedConsumer::$node(consumer)
+        impl From<$consumer> for __Consumer {
+            fn from(consumer: <$node as graphity::node::Node<$payload>>::Consumer) -> Self {
+                Self::$nid(consumer)
             }
         }
 
-        impl From<<$node as Node<$payload>>::Producer> for GeneratedProducer {
-            fn from(producer: <$node as Node<$payload>>::Producer) -> Self {
-                GeneratedProducer::$node(producer)
+        impl From<$producer> for __Producer {
+            fn from(producer: <$node as graphity::node::Node<$payload>>::Producer) -> Self {
+                Self::$nid(producer)
             }
-
         }
         )*
 
-        pub type $graph = SignalGraph<
-            GeneratedNode,
-            GeneratedNodeIndex,
-            GeneratedConsumerIndex,
-            GeneratedProducerIndex,
+        pub type $graph = graphity::signal::SignalGraph<
+            __Node,
+            __NodeIndex,
+            __ConsumerIndex,
+            __ProducerIndex,
         >;
+    };
+    ( $graph:ident <$payload:ty>; $( $node:ident ),* $(,)? ) => {
+        compile_error!(
+            "The signature of the graphity! macro has been changed. \
+             Read the documentation https://docs.rs/graphity/latest/graphity/macro.graphity.html \
+             to learn about the new format"
+        );
     };
 }
 
 #[cfg(test)]
 mod tests {
-    use graphity::node::{Node, NodeIndex, NodeWrapper};
-
-    pub struct Generator(i32);
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub enum GeneratorInput {}
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct GeneratorOutput;
-
-    impl Node<i32> for Generator {
-        type Consumer = GeneratorInput;
-        type Producer = GeneratorOutput;
-
-        fn read(&self, _producer: Self::Producer) -> i32 {
-            self.0
-        }
-    }
-
-    #[derive(Default)]
-    pub struct Sum {
-        input1: i32,
-        input2: i32,
-        output: i32,
-    }
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub enum SumInput {
-        In1,
-        In2,
-    }
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct SumOutput;
-
-    impl Node<i32> for Sum {
-        type Consumer = SumInput;
-        type Producer = SumOutput;
-
-        fn tick(&mut self) {
-            self.output = self.input1 + self.input2;
-        }
-
-        fn write(&mut self, consumer: Self::Consumer, input: i32) {
-            match consumer {
-                SumInput::In1 => self.input1 = input,
-                SumInput::In2 => self.input2 = input,
-            }
-        }
-
-        fn read(&self, _producer: Self::Producer) -> i32 {
-            self.output
-        }
-    }
-
-    #[derive(Default)]
-    pub struct Recorder(i32);
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct RecorderInput;
-
-    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-    pub struct RecorderOutput;
-
-    impl Node<i32> for Recorder {
-        type Consumer = RecorderInput;
-        type Producer = RecorderOutput;
-
-        fn read(&self, _producer: Self::Producer) -> i32 {
-            self.0
-        }
-
-        fn write(&mut self, _consumer: Self::Consumer, input: i32) {
-            self.0 = input;
-        }
-    }
+    use graphity::node::{NodeIndex, NodeWrapper};
 
     // Simple tree:
     //
@@ -322,22 +255,36 @@ mod tests {
     // Should save 3 to the end consumer.
     #[test]
     fn simple_tree() {
-        mod g {
-            use super::{Generator, Recorder, Sum};
-            graphity!(Graph<i32>; Generator, Sum, Recorder);
-        }
-        use g::Graph;
+        use graphity_nodes::*;
+
+        graphity!(
+            Graph<i32>;
+            Generator = {Generator, GeneratorConsumer, GeneratorProducer},
+            Sum = {Sum, SumConsumer, SumProducer},
+            Recorder = {Recorder, RecorderConsumer, RecorderProducer},
+        );
 
         let mut graph = Graph::new();
-        let one = graph.add_node(Generator(1));
-        let two = graph.add_node(Generator(2));
+
+        let one = graph.add_node(Generator::new(1));
+        let two = graph.add_node(Generator::new(2));
         let sum = graph.add_node(Sum::default());
         let recorder = graph.add_node(Recorder::default());
-        graph.must_add_edge(one.producer(GeneratorOutput), sum.consumer(SumInput::In1));
-        graph.must_add_edge(two.producer(GeneratorOutput), sum.consumer(SumInput::In2));
-        graph.must_add_edge(sum.producer(SumOutput), recorder.consumer(RecorderInput));
+
+        graph.must_add_edge(
+            one.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In1),
+        );
+        graph.must_add_edge(
+            two.producer(GeneratorProducer),
+            sum.consumer(SumConsumer::In2),
+        );
+        graph.must_add_edge(
+            sum.producer(SumProducer),
+            recorder.consumer(RecorderConsumer),
+        );
 
         graph.tick();
-        assert_eq!(graph.node(&recorder).unwrap().read(RecorderOutput), 3);
+        assert_eq!(graph.node(&recorder).unwrap().read(RecorderProducer), 3);
     }
 }

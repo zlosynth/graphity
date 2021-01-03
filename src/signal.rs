@@ -349,18 +349,15 @@ where
     /// # Example
     ///
     /// Generate `SignalGraph` implementation using the `graphity` macro. Then
-    /// initialize it.
+    /// initialize it. Read the [macro documentation](../macro.graphity.html) to
+    /// learn how to define the graph.
     ///
     /// ```ignore
-    /// // pub struct Generator ...
-    /// // pub struct Echo ...
+    /// graphity!(
+    ///     ...
+    /// );
     ///
-    /// mod g {
-    ///     use super::{Generator, Echo};
-    ///     graphity!(Graph<i32>; Generator, Echo);
-    /// }
-    ///
-    /// let mut graph = g::Graph::new();
+    /// let mut graph = Graph::new();
     /// ```
     pub fn new() -> Self {
         Self {
