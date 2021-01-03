@@ -21,7 +21,7 @@ Add the following to your `Cargo.toml`:
 
 ``` toml
 [dependencies]
-graphity = "1.0"
+graphity = "2.0"
 ```
 
 Then you need to:
